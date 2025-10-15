@@ -7,7 +7,7 @@
 [![Flask](https://img.shields.io/badge/Flask-3.0.0-green?style=for-the-badge&logo=flask)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 
-**强大的 Markdown 文档管理与预览系统** (｡･ω･｡)ﾉ♡
+**一个强大的 Markdown 文档管理与预览系统** (｡･ω･｡)ﾉ♡
 
 [快速开始](#快速开始) • [功能特性](#功能特性) • [使用指南](#使用指南) • [贡献](#贡献)
 
