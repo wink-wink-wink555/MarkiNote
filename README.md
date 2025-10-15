@@ -193,7 +193,6 @@ MarkiNote/
 - [Flask](https://flask.palletsprojects.com/)
 - [MathJax](https://www.mathjax.org/)
 - [Mermaid](https://mermaid.js.org/)
-- [python-docx](https://python-docx.readthedocs.io/)
 
 ---
 
