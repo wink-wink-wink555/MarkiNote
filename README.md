@@ -1,6 +1,10 @@
 # MarkiNote ✨
 
 <div align="center">
+  <img src="images/LOGO.png" alt="MarkiNote Logo" width="260"/>
+</div>
+
+<div align="center">
 
 ![MarkiNote Logo](https://img.shields.io/badge/MarkiNote-✨_Markdown_Library-ff69b4?style=for-the-badge)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
