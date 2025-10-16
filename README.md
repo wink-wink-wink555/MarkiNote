@@ -1,7 +1,7 @@
 # MarkiNote ✨
 
 <div align="center">
-  <img src="images/LOGO.png" alt="MarkiNote Logo" width="260"/>
+  <img src="images/LOGO.png" alt="MarkiNote Logo" width="290"/>
 </div>
 
 <div align="center">
