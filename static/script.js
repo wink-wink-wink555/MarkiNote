@@ -106,8 +106,33 @@ function setupEventListeners() {
     // 监听预览内容的右键菜单（选中文字）
     previewContent.addEventListener('contextmenu', showPreviewContextMenu);
     
+    // 限制文本选择不能跨行
+    previewContent.addEventListener('mouseup', restrictTextSelection);
+    previewContent.addEventListener('selectstart', restrictTextSelection);
+    
     // 加载保存的主题设置
     loadTheme();
+}
+
+// 限制文本选择不能跨行
+function restrictTextSelection(event) {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+    
+    const range = selection.getRangeAt(0);
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+    
+    // 如果选择跨越了不同的父元素（即跨行），限制到单个元素内
+    if (startContainer.parentElement !== endContainer.parentElement) {
+        // 清除当前选择
+        selection.removeAllRanges();
+        
+        // 创建新的范围，只选择起始元素的文本
+        const newRange = document.createRange();
+        newRange.selectNodeContents(startContainer.parentElement);
+        selection.addRange(newRange);
+    }
 }
 
 
@@ -186,6 +211,11 @@ function displayFiles(items) {
                     <div class="file-name">${item.name}</div>
                     <div class="file-meta">${size} ${size && modified ? '•' : ''} ${modified}</div>
                 </div>
+                <button class="file-menu-btn" onclick="showContextMenuFromButton(event, '${item.path}', '${item.type}')" title="更多操作">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                    </svg>
+                </button>
             </div>
         `;
     }).join('');
@@ -407,6 +437,23 @@ function showContextMenu(event, path, type) {
     // 定位菜单
     contextMenu.style.left = event.pageX + 'px';
     contextMenu.style.top = event.pageY + 'px';
+    contextMenu.classList.add('show');
+}
+
+// 从"..."按钮显示右键菜单
+function showContextMenuFromButton(event, path, type) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    contextMenuTarget = { path, type };
+    
+    // 获取按钮位置
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
+    
+    // 定位菜单到按钮下方
+    contextMenu.style.left = (rect.left - 100) + 'px'; // 向左偏移一些
+    contextMenu.style.top = (rect.bottom + 5) + 'px';
     contextMenu.classList.add('show');
 }
 
@@ -764,10 +811,10 @@ async function previewContextMenuAction(action) {
     
     switch (action) {
         case 'copy':
-            // 复制选中的文本
+            // 复制选中的文本（无提示）
             try {
                 await navigator.clipboard.writeText(selectedText);
-                showSuccess('已复制到剪贴板');
+                // 复制成功后不显示提示
             } catch (err) {
                 console.error('复制失败:', err);
                 showError('复制失败');
@@ -1035,9 +1082,9 @@ function toggleTheme() {
     const body = document.body;
     const isDark = body.classList.toggle('dark-mode');
     
-    // 切换图标
-    document.getElementById('sunIcon').style.display = isDark ? 'none' : 'block';
-    document.getElementById('moonIcon').style.display = isDark ? 'block' : 'none';
+    // 切换图标：白天模式显示月亮，夜间模式显示太阳
+    document.getElementById('sunIcon').style.display = isDark ? 'block' : 'none';
+    document.getElementById('moonIcon').style.display = isDark ? 'none' : 'block';
     
     // 保存主题设置
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
@@ -1048,6 +1095,10 @@ function loadTheme() {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
+        document.getElementById('sunIcon').style.display = 'block';
+        document.getElementById('moonIcon').style.display = 'none';
+    } else {
+        // 白天模式：显示月亮图标
         document.getElementById('sunIcon').style.display = 'none';
         document.getElementById('moonIcon').style.display = 'block';
     }
