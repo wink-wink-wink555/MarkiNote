@@ -292,6 +292,7 @@ body.dark-mode .file-item.search-match {
     transition: all 0.2s;
     gap: 12px;
     user-select: none;
+    position: relative;
 }
 
 .file-item:hover {
@@ -330,6 +331,32 @@ body.dark-mode .file-item.search-match {
     font-size: 12px;
     color: var(--text-secondary);
     margin-top: 2px;
+}
+
+/* 文件项的"..."菜单按钮 */
+.file-menu-btn {
+    display: none;
+    position: absolute;
+    right: 12px;
+    background: var(--hover-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-secondary);
+}
+
+.file-item:hover .file-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-menu-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
 }
 
 .loading, .empty-state {
@@ -415,6 +442,13 @@ body.dark-mode .file-item.search-match {
     max-width: 900px;
     margin: 0 auto;
     line-height: 1.8;
+    /* 禁止跨行选择文本 */
+    user-select: text;
+}
+
+.markdown-body * {
+    /* 每个元素独立选择，不能跨元素选择 */
+    user-select: contain;
 }
 
 .markdown-body h1,
