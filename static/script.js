@@ -106,33 +106,8 @@ function setupEventListeners() {
     // 监听预览内容的右键菜单（选中文字）
     previewContent.addEventListener('contextmenu', showPreviewContextMenu);
     
-    // 限制文本选择不能跨行
-    previewContent.addEventListener('mouseup', restrictTextSelection);
-    previewContent.addEventListener('selectstart', restrictTextSelection);
-    
     // 加载保存的主题设置
     loadTheme();
-}
-
-// 限制文本选择不能跨行
-function restrictTextSelection(event) {
-    const selection = window.getSelection();
-    if (!selection.rangeCount) return;
-    
-    const range = selection.getRangeAt(0);
-    const startContainer = range.startContainer;
-    const endContainer = range.endContainer;
-    
-    // 如果选择跨越了不同的父元素（即跨行），限制到单个元素内
-    if (startContainer.parentElement !== endContainer.parentElement) {
-        // 清除当前选择
-        selection.removeAllRanges();
-        
-        // 创建新的范围，只选择起始元素的文本
-        const newRange = document.createRange();
-        newRange.selectNodeContents(startContainer.parentElement);
-        selection.addRange(newRange);
-    }
 }
 
 
@@ -796,6 +771,17 @@ function showPreviewContextMenu(event) {
     
     selectedText = text;
     
+    // 检测选中的文本是否包含换行符
+    const hasNewline = text.includes('\n') || text.includes('\r');
+    
+    // 获取"在源代码中显示"菜单项
+    const findInSourceMenuItem = document.getElementById('findInSourceMenuItem');
+    
+    // 如果包含换行，隐藏该选项；否则显示
+    if (findInSourceMenuItem) {
+        findInSourceMenuItem.style.display = hasNewline ? 'none' : 'flex';
+    }
+    
     // 定位菜单
     previewContextMenu.style.left = event.pageX + 'px';
     previewContextMenu.style.top = event.pageY + 'px';
@@ -1046,12 +1032,23 @@ function closeSearch() {
         item.classList.remove('search-match');
         item.style.display = '';
     });
+    // 移除"无搜索结果"提示
+    const existingNoResult = fileList.querySelector('.no-search-result');
+    if (existingNoResult) {
+        existingNoResult.remove();
+    }
 }
 
 // 处理搜索
 function handleSearch(event) {
     const query = event.target.value.trim().toLowerCase();
     const fileItems = document.querySelectorAll('.file-item');
+    
+    // 移除之前的"无搜索结果"提示
+    const existingNoResult = fileList.querySelector('.no-search-result');
+    if (existingNoResult) {
+        existingNoResult.remove();
+    }
     
     if (!query) {
         // 清空搜索，显示所有文件
@@ -1063,16 +1060,32 @@ function handleSearch(event) {
     }
     
     // 搜索并高亮匹配项
+    let hasMatch = false;
     fileItems.forEach(item => {
         const fileName = item.querySelector('.file-name').textContent.toLowerCase();
         if (fileName.includes(query)) {
             item.classList.add('search-match');
             item.style.display = '';
+            hasMatch = true;
         } else {
             item.classList.remove('search-match');
             item.style.display = 'none';
         }
     });
+    
+    // 如果没有匹配结果，显示"无搜索结果"
+    if (!hasMatch) {
+        const noResultDiv = document.createElement('div');
+        noResultDiv.className = 'no-search-result';
+        noResultDiv.innerHTML = `
+            <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" style="opacity: 0.3; margin-bottom: 16px;">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <p style="color: var(--text-secondary); font-size: 15px;">无搜索结果</p>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">试试其他关键词</p>
+        `;
+        fileList.appendChild(noResultDiv);
+    }
 }
 
 // ===== 主题切换功能 =====
