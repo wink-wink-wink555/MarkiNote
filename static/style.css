@@ -365,6 +365,17 @@ body.dark-mode .file-item.search-match {
     color: var(--text-secondary);
 }
 
+/* 无搜索结果样式 */
+.no-search-result {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
 /* ===== 预览面板 ===== */
 .preview-panel {
     display: flex;
@@ -442,13 +453,6 @@ body.dark-mode .file-item.search-match {
     max-width: 900px;
     margin: 0 auto;
     line-height: 1.8;
-    /* 禁止跨行选择文本 */
-    user-select: text;
-}
-
-.markdown-body * {
-    /* 每个元素独立选择，不能跨元素选择 */
-    user-select: contain;
 }
 
 .markdown-body h1,
