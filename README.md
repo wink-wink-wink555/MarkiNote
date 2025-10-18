@@ -63,7 +63,7 @@ MarkiNote 是一个基于 Flask 的现代化 Markdown 文档管理系统，让�
 
 <div align="center">
 <img src="images/2.png" alt="示例2" width="600"/>
-<p><em>支持 LaTex 数学公式渲染</em></p>
+<p><em>支持 LaTex 数学公式、代码块渲染</em></p>
 </div>
 
 <div align="center">
@@ -83,7 +83,7 @@ MarkiNote 是一个基于 Flask 的现代化 Markdown 文档管理系统，让�
 
 <div align="center">
 <img src="images/6.png" alt="示例6" width="600"/>
-<p><em>支持在线查看、编辑文件的源代码</em></p>
+<p><em>一键查看、编辑文件源代码，效率杠杠滴！</em></p>
 </div>
 
 ---
