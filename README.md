@@ -13,7 +13,7 @@
 
 **一个强大的 Markdown 文档管理与预览系统** (｡･ω･｡)ﾉ♡
 
-[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用指南](#-使用指南) • [贡献](#-贡献)
+[产品预览](#-产品预览) • [快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用指南](#-使用指南) • [贡献](#-贡献)
 
 </div>
 
@@ -49,6 +49,42 @@ MarkiNote 是一个基于 Flask 的现代化 Markdown 文档管理系统，让�
 - ✅ 数学公式渲染 (MathJax)
 - ✅ 查看、编辑 Markdown 文档的源代码
 - ✅ Mermaid 图表支持
+
+---
+
+## 📸 产品预览
+
+**来看看MarkiNote的真容吧！每一个界面都充满了爱~** ✨
+
+<div align="center">
+<img src="images/1.png" alt="示例1" width="600"/>
+<p><em>内容浏览、文件管理，操作丝滑一应俱全</em></p>
+</div>
+
+<div align="center">
+<img src="images/2.png" alt="示例2" width="600"/>
+<p><em>支持 LaTex 数学公式渲染</em></p>
+</div>
+
+<div align="center">
+<img src="images/3.png" alt="示例3" width="600"/>
+<p><em>支持 Mermaid 各类图表渲染</em></p>
+</div>
+
+<div align="center">
+<img src="images/4.png" alt="示例4" width="600"/>
+<p><em>文件太多？一键关键词搜索没烦恼！</em></p>
+</div>
+
+<div align="center">
+<img src="images/5.png" alt="示例5" width="600"/>
+<p><em>晚上想偷偷“卷”？那就切换到夜间模式吧~</em></p>
+</div>
+
+<div align="center">
+<img src="images/6.png" alt="示例6" width="600"/>
+<p><em>支持在线查看、编辑文件的源代码</em></p>
+</div>
 
 ---
 
