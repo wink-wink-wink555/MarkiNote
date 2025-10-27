@@ -178,34 +178,51 @@ function selectUploadType(type) {
     fileInput.click();
 }
 
-// 加载Library
+// 加载Library（优化版，添加性能监控）
 async function loadLibrary(path = '') {
     currentPath = path;
     fileList.innerHTML = '<div class="loading">加载中...</div>';
     
+    const startTime = performance.now();
+    
     try {
+        const fetchStart = performance.now();
         const response = await fetch(`/api/library/list?path=${encodeURIComponent(path)}`);
+        const fetchTime = performance.now() - fetchStart;
+        
+        const parseStart = performance.now();
         const data = await response.json();
+        const parseTime = performance.now() - parseStart;
         
         if (data.success) {
+            const renderStart = performance.now();
             displayFiles(data.items);
+            const renderTime = performance.now() - renderStart;
+            
             updateBreadcrumb(path);
+            
+            const totalTime = performance.now() - startTime;
+            console.log(`📊 加载性能: 总计${totalTime.toFixed(0)}ms | 网络${fetchTime.toFixed(0)}ms | 解析${parseTime.toFixed(0)}ms | 渲染${renderTime.toFixed(0)}ms | 文件数${data.items.length}`);
         } else {
             showError('加载文件列表失败');
         }
     } catch (error) {
         showError('加载失败: ' + error.message);
+        console.error('❌ 加载错误:', error);
     }
 }
 
-// 显示文件列表
+// 显示文件列表（优化版，使用DocumentFragment减少重绘）
 function displayFiles(items) {
     if (items.length === 0) {
         fileList.innerHTML = '<div class="empty-state">📁 文件夹为空<br><small style="color: var(--text-secondary); margin-top: 8px;">点击"上传"按钮添加文件</small></div>';
         return;
     }
     
-    fileList.innerHTML = items.map(item => {
+    // 使用 DocumentFragment 批量添加DOM，减少重绘次数
+    const fragment = document.createDocumentFragment();
+    
+    items.forEach(item => {
         const icon = item.type === 'folder' 
             ? '<svg width="24" height="24" viewBox="0 0 16 16" fill="#3b82f6"><path d="M.54 3.87L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31z"/></svg>'
             : '<svg width="24" height="24" viewBox="0 0 16 16" fill="#64748b"><path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/></svg>';
@@ -213,25 +230,32 @@ function displayFiles(items) {
         const size = item.size ? formatFileSize(item.size) : '';
         const modified = item.modified ? formatDate(item.modified) : '';
         
-        return `
-            <div class="file-item ${item.type}" 
-                 data-path="${item.path}" 
-                 data-type="${item.type}"
-                 onclick="handleFileClick('${item.path}', '${item.type}')"
-                 oncontextmenu="showContextMenu(event, '${item.path}', '${item.type}')">
-                <div class="file-icon">${icon}</div>
-                <div class="file-info">
-                    <div class="file-name">${item.name}</div>
-                    <div class="file-meta">${size} ${size && modified ? '•' : ''} ${modified}</div>
-                </div>
-                <button class="file-menu-btn" onclick="showContextMenuFromButton(event, '${item.path}', '${item.type}')" title="更多操作">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
-                    </svg>
-                </button>
+        const div = document.createElement('div');
+        div.className = `file-item ${item.type}`;
+        div.dataset.path = item.path;
+        div.dataset.type = item.type;
+        div.onclick = () => handleFileClick(item.path, item.type);
+        div.oncontextmenu = (e) => showContextMenu(e, item.path, item.type);
+        
+        div.innerHTML = `
+            <div class="file-icon">${icon}</div>
+            <div class="file-info">
+                <div class="file-name">${item.name}</div>
+                <div class="file-meta">${size} ${size && modified ? '•' : ''} ${modified}</div>
             </div>
+            <button class="file-menu-btn" onclick="showContextMenuFromButton(event, '${item.path}', '${item.type}')" title="更多操作">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
+                </svg>
+            </button>
         `;
-    }).join('');
+        
+        fragment.appendChild(div);
+    });
+    
+    // 一次性添加所有元素，只触发一次重绘
+    fileList.innerHTML = '';
+    fileList.appendChild(fragment);
 }
 
 // 更新面包屑导航
