@@ -25,9 +25,10 @@
         }
     };
     </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- 使用jsDelivr CDN，国内访问更快 -->
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -117,7 +118,7 @@
                     </svg>
                     <h3>欢迎使用 MarkiNote</h3>
                     <p>从左侧选择一个文件开始预览</p>
-                    <p class="tip">💡 支持 .md、.markdown、.txt 格式文件</p>
+                    <p class="tip">支持的文件格式：.md、.markdown、.txt</p>
                 </div>
             </div>
         </main>
@@ -361,6 +362,6 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
