@@ -8,7 +8,7 @@ from app.utils import allowed_file, safe_filename
 library_bp = Blueprint('library', __name__)
 
 def get_library_structure(base_path, current_path=''):
-    """获取Library目录结构
+    """获取Library目录结构（优化版，使用scandir提高性能）
     
     Args:
         base_path: Library根目录
@@ -21,27 +21,43 @@ def get_library_structure(base_path, current_path=''):
     items = []
     
     try:
-        for item in os.listdir(full_path):
-            item_path = os.path.join(full_path, item)
-            rel_path = os.path.join(current_path, item) if current_path else item
-            
-            if os.path.isdir(item_path):
-                items.append({
-                    'name': item,
-                    'type': 'folder',
-                    'path': rel_path.replace('\\', '/'),
-                    'modified': datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat()
-                })
-            else:
-                # 只显示允许的文件类型
-                if allowed_file(item, current_app.config['ALLOWED_EXTENSIONS']):
-                    items.append({
-                        'name': item,
-                        'type': 'file',
-                        'path': rel_path.replace('\\', '/'),
-                        'size': os.path.getsize(item_path),
-                        'modified': datetime.fromtimestamp(os.path.getmtime(item_path)).isoformat()
-                    })
+        # 使用 scandir 而不是 listdir，性能提升显著
+        # scandir 返回 DirEntry 对象，避免额外的 stat 调用
+        with os.scandir(full_path) as entries:
+            for entry in entries:
+                # 跳过隐藏文件
+                if entry.name.startswith('.'):
+                    continue
+                
+                rel_path = os.path.join(current_path, entry.name) if current_path else entry.name
+                
+                try:
+                    # 使用 DirEntry 的缓存属性，避免额外的系统调用
+                    if entry.is_dir(follow_symlinks=False):
+                        # 获取文件夹信息
+                        stat_info = entry.stat(follow_symlinks=False)
+                        items.append({
+                            'name': entry.name,
+                            'type': 'folder',
+                            'path': rel_path.replace('\\', '/'),
+                            'modified': datetime.fromtimestamp(stat_info.st_mtime).isoformat()
+                        })
+                    elif entry.is_file(follow_symlinks=False):
+                        # 只显示允许的文件类型
+                        if allowed_file(entry.name, current_app.config['ALLOWED_EXTENSIONS']):
+                            stat_info = entry.stat(follow_symlinks=False)
+                            items.append({
+                                'name': entry.name,
+                                'type': 'file',
+                                'path': rel_path.replace('\\', '/'),
+                                'size': stat_info.st_size,
+                                'modified': datetime.fromtimestamp(stat_info.st_mtime).isoformat()
+                            })
+                except (OSError, PermissionError) as e:
+                    # 跳过无法访问的文件
+                    print(f"跳过文件 {entry.name}: {e}")
+                    continue
+                    
     except Exception as e:
         return {'error': str(e)}
     
@@ -51,11 +67,20 @@ def get_library_structure(base_path, current_path=''):
 
 @library_bp.route('/api/library/list', methods=['GET'])
 def list_library():
-    """获取Library文件列表"""
+    """获取Library文件列表（添加性能监控）"""
+    import time
+    start_time = time.time()
+    
     current_path = request.args.get('path', '')
     base_path = current_app.config['LIBRARY_FOLDER']
     
+    scan_start = time.time()
     items = get_library_structure(base_path, current_path)
+    scan_time = (time.time() - scan_start) * 1000  # 转换为毫秒
+    
+    total_time = (time.time() - start_time) * 1000
+    
+    print(f"⚡ Library扫描: {scan_time:.0f}ms | 总计: {total_time:.0f}ms | 路径: {current_path or '根目录'} | 项目数: {len(items) if isinstance(items, list) else 0}")
     
     return jsonify({
         'success': True,
