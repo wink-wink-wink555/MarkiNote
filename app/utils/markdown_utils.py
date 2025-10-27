@@ -180,16 +180,31 @@ def process_markdown(md_content):
         placeholder = f'MERMAIDBLOCKPLACEHOLDER{i}ENDPLACEHOLDER'
         # 生成标准的Mermaid代码块HTML，确保类名为language-mermaid
         wrapped_content = f'<pre><code class="language-mermaid">{code}</code></pre>'
-        # 尝试多种替换方式
-        if f'<p>{placeholder}</p>' in html_content:
-            html_content = html_content.replace(f'<p>{placeholder}</p>', wrapped_content)
-            print(f"[Mermaid {i}] 替换了 <p> 包装的占位符")
-        elif placeholder in html_content:
-            html_content = html_content.replace(placeholder, wrapped_content)
-            print(f"[Mermaid {i}] 替换了普通占位符")
-        else:
+        # 尝试多种替换方式，包括更复杂的包装情况
+        replacements = [
+            f'<p>{placeholder}</p>',
+            f'<pre><code>{placeholder}</code></pre>',
+            f'<pre><code class="highlight">{placeholder}</code></pre>',
+            f'<pre><code class="language-text">{placeholder}</code></pre>',
+            placeholder
+        ]
+
+        replaced = False
+        for replacement in replacements:
+            if replacement in html_content:
+                html_content = html_content.replace(replacement, wrapped_content)
+                print(f"[Mermaid {i}] 替换了 {replacement} 为 {wrapped_content}")
+                replaced = True
+                break
+
+        if not replaced:
             print(f"[警告] Mermaid {i} 的占位符未找到: {placeholder}")
-    
+            # 如果都没找到，尝试更宽泛的搜索
+            pattern = rf'<[^>]*>{re.escape(placeholder)}[^<]*</[^>]*>|{re.escape(placeholder)}'
+            matches = re.findall(pattern, html_content)
+            if matches:
+                print(f"[调试] 找到匹配的模式: {matches[:3]}")  # 只显示前3个匹配
+
     # 恢复数学公式，并包装在适当的HTML标签中
     print(f"[数学公式] 共提取了 {len(math_blocks)} 个数学公式")
     for i, (math_type, math_content) in enumerate(math_blocks):
@@ -215,6 +230,5 @@ def process_markdown(md_content):
                 print(f"[行内公式 {i}] 成功替换")
             else:
                 print(f"[警告] 行内公式 {i} 的占位符未找到: {placeholder}")
-    
-    return html_content
 
+    return html_content
