@@ -1345,7 +1345,13 @@ function initializeMermaid() {
             startOnLoad: false,
             theme: 'default',
             securityLevel: 'loose',
-            fontFamily: 'Arial, sans-serif'
+            themeVariables: {
+                fontFamily: 'Arial, sans-serif'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
         });
         console.log('✅ Mermaid已初始化');
     } else {
@@ -1489,7 +1495,13 @@ async function renderMermaidDiagrams() {
             startOnLoad: false,
             theme: 'default',
             securityLevel: 'loose',
-            fontFamily: 'Arial, sans-serif'
+            themeVariables: {
+                fontFamily: 'Arial, sans-serif'
+            },
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
         });
     } catch (err) {
         console.error('Mermaid初始化失败:', err);
@@ -1498,19 +1510,22 @@ async function renderMermaidDiagrams() {
     for (let i = 0; i < mermaidBlocks.length; i++) {
         const codeBlock = mermaidBlocks[i];
         const pre = codeBlock.parentElement;
+        // 使用 textContent 会自动解码 HTML 实体
         const mermaidCode = codeBlock.textContent.trim();
         
         console.log(`🔧 处理Mermaid图表 ${i + 1}:`, mermaidCode.substring(0, 50) + '...');
+        console.log(`📝 完整代码:`, mermaidCode);
         
         // 创建容器
         const container = document.createElement('div');
         container.className = 'mermaid-container';
         container.setAttribute('data-index', i);
+        // 保存原始代码到容器的 data 属性中
+        container.setAttribute('data-mermaid-source', mermaidCode);
         
         // 创建Mermaid渲染区域
         const mermaidDiv = document.createElement('div');
         mermaidDiv.className = 'mermaid';
-        mermaidDiv.setAttribute('data-processed', 'false');
         mermaidDiv.textContent = mermaidCode;
         
         // 创建操作按钮容器
@@ -1523,7 +1538,9 @@ async function renderMermaidDiagrams() {
         copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/></svg>';
         copyBtn.title = '复制源代码';
         copyBtn.addEventListener('click', async () => {
-            const success = await copyToClipboard(mermaidCode);
+            // 从容器的 data 属性中获取原始代码
+            const sourceCode = container.getAttribute('data-mermaid-source') || mermaidCode;
+            const success = await copyToClipboard(sourceCode);
             if (success) {
                 copyBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>';
                 copyBtn.classList.add('success');
@@ -1551,45 +1568,60 @@ async function renderMermaidDiagrams() {
         pre.parentNode.replaceChild(container, pre);
     }
     
-    // 渲染所有Mermaid图表
+    // 渲染所有Mermaid图表 - 使用手动渲染方式，更可控
     try {
-        const elements = previewContent.querySelectorAll('.mermaid[data-processed="false"]');
-        console.log(`📌 准备渲染 ${elements.length} 个Mermaid图表`);
+        const containers = previewContent.querySelectorAll('.mermaid-container');
+        console.log(`📌 准备渲染 ${containers.length} 个Mermaid图表`);
         
-        if (elements.length > 0) {
-            // Mermaid 10.x 使用 run() 方法，但需要传递选择器或节点数组
-            // 移除 data-processed 属性，让 Mermaid 自己处理
-            elements.forEach(el => el.removeAttribute('data-processed'));
+        for (let i = 0; i < containers.length; i++) {
+            const container = containers[i];
+            const mermaidDiv = container.querySelector('.mermaid');
             
-            // 方法1: 使用 run() 方法（Mermaid 10+）
+            // 从容器的 data 属性中获取原始代码
+            const graphDefinition = container.getAttribute('data-mermaid-source');
+            
+            if (!graphDefinition) {
+                console.error(`❌ 图表 ${i + 1} 没有找到源代码`);
+                continue;
+            }
+            
+            const id = `mermaid-diagram-${Date.now()}-${i}`;
+            
+            console.log(`🎯 渲染图表 ${i + 1}, ID: ${id}`);
+            console.log(`📄 图表定义 (前100字符):`, graphDefinition.substring(0, 100));
+            
             try {
-                await mermaid.run({
-                    nodes: Array.from(elements)
+                // 使用 mermaid.render() 方法渲染
+                const { svg } = await mermaid.render(id, graphDefinition);
+                mermaidDiv.innerHTML = svg;
+                console.log(`✅ 图表 ${i + 1} 渲染成功`);
+            } catch (renderErr) {
+                console.error(`❌ 图表 ${i + 1} 渲染失败:`, renderErr);
+                console.error(`❌ 完整错误信息:`, {
+                    message: renderErr.message,
+                    name: renderErr.name,
+                    stack: renderErr.stack
                 });
-                console.log('✅ Mermaid图表渲染完成（方法1）');
-            } catch (runErr) {
-                console.warn('⚠️ mermaid.run() 失败，尝试方法2:', runErr);
                 
-                // 方法2: 手动渲染每个图表（兼容旧版本）
-                for (let i = 0; i < elements.length; i++) {
-                    const element = elements[i];
-                    const graphDefinition = element.textContent;
-                    const id = `mermaid-${Date.now()}-${i}`;
-                    
-                    try {
-                        const { svg } = await mermaid.render(id, graphDefinition);
-                        element.innerHTML = svg;
-                        console.log(`✅ 图表 ${i + 1} 渲染成功`);
-                    } catch (renderErr) {
-                        console.error(`❌ 图表 ${i + 1} 渲染失败:`, renderErr);
-                        element.innerHTML = `<pre style="color: red;">渲染失败: ${renderErr.message}</pre>`;
-                    }
-                }
-                console.log('✅ Mermaid图表渲染完成（方法2）');
+                // 显示友好的错误信息
+                mermaidDiv.innerHTML = `<div style="padding: 20px; background: #fee; border: 2px solid #f88; border-radius: 6px; color: #c33; font-family: monospace; max-width: 100%; overflow: auto;">
+                    <strong style="font-size: 16px;">❌ Mermaid 图表渲染失败</strong><br><br>
+                    <strong>错误信息：</strong><br>
+                    <div style="background: #fff; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; color: #d00;">
+                        ${escapeHtml(renderErr.message || '未知错误')}
+                    </div>
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; font-weight: bold;">📝 查看图表源代码</summary>
+                        <pre style="background: #fff; padding: 10px; margin-top: 10px; border: 1px solid #ddd; border-radius: 4px; overflow-x: auto; color: #333; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(graphDefinition)}</pre>
+                    </details>
+                    <small style="display: block; margin-top: 10px; color: #666;">💡 提示：检查图表语法是否正确，或参考 <a href="https://mermaid.js.org/" target="_blank" style="color: #0066cc;">Mermaid 官方文档</a></small>
+                </div>`;
             }
         }
+        
+        console.log('✅ Mermaid图表渲染完成');
     } catch (err) {
-        console.error('❌ Mermaid渲染失败:', err);
+        console.error('❌ Mermaid渲染过程出错:', err);
     }
 }
 
