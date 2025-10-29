@@ -90,44 +90,80 @@ def process_markdown(md_content):
     md_content = re.sub(r'^(?![#\-\*>\s])(.+(?:\\sum|\\frac|\\int|\\prod|\\sqrt).+)$', 
                        smart_math_detect, md_content, flags=re.MULTILINE)
     
-    # 修复列表格式：自动在列表项前添加空行，并将2空格缩进转换为4空格
-    # 这样即使原文没有空行，也能正确渲染列表
+    # 修复列表格式：自动在列表项前添加空行，标准化缩进
+    # 避免列表被误识别为代码块（4+空格会被识别为代码块）
     lines = md_content.split('\n')
     
-    # 第一步：分析所有列表项的缩进，找出缩进单位
+    # 第一步：分析所有列表项的缩进，找出最小缩进（顶级列表的缩进）
     list_indents = []
     for line in lines:
         stripped = line.strip()
         is_list_item = bool(re.match(r'^[\-\*\+]\s+', stripped))
-        if is_list_item and line.startswith(' '):
-            leading_spaces = len(line) - len(line.lstrip(' '))
-            list_indents.append(leading_spaces)
+        if is_list_item:
+            if line.startswith(' '):
+                leading_spaces = len(line) - len(line.lstrip(' '))
+                list_indents.append(leading_spaces)
+            else:
+                list_indents.append(0)  # 无缩进的顶级列表
     
-    # 判断是否需要翻倍缩进：如果存在非4倍数的缩进，说明使用的是2空格缩进单位
-    needs_double = False
+    # 找出最小缩进（顶级列表的缩进级别）
+    min_indent = min(list_indents) if list_indents else 0
+    
+    # 判断缩进单位：如果最小的非零缩进是2，说明使用2空格缩进单位
+    indent_unit = 4  # 默认4空格
     if list_indents:
-        # 检查是否有2的倍数但非4的倍数的缩进
-        for indent in list_indents:
-            if indent % 4 == 2:
-                needs_double = True
-                break
+        non_zero_indents = [i for i in list_indents if i > 0]
+        if non_zero_indents:
+            # 找出最小的非零缩进作为缩进单位
+            smallest_non_zero = min(non_zero_indents)
+            if smallest_non_zero == 2 or any(i % 4 == 2 for i in list_indents):
+                indent_unit = 2
     
-    # 第二步：处理每一行
+    # 第二步：处理每一行，标准化缩进并添加必要的空行
     fixed_lines = []
     prev_was_list = False
+    
+    # 决定顶级列表的基准缩进：
+    # 如果最小缩进>=4，说明这些列表可能是某个父元素（如编号列表）的子项
+    # 应该保持4个空格的缩进（Markdown标准的嵌套缩进），而不是减少为2
+    # 只有当最小缩进在1-3之间时才保持原样，0就是0
+    if min_indent >= 4:
+        base_indent = 4  # 保持为4，作为标准嵌套缩进
+    elif min_indent > 0:
+        base_indent = min_indent  # 1-3之间保持原样
+    else:
+        base_indent = 0  # 无缩进
     
     for i, line in enumerate(lines):
         stripped = line.strip()
         # 检查当前行是否是列表项
         is_list_item = bool(re.match(r'^[\-\*\+]\s+', stripped))
         
-        # 修复缩进：如果检测到需要翻倍，则将所有有缩进的列表项缩进翻倍
-        if needs_double and is_list_item and line.startswith(' '):
-            leading_spaces = len(line) - len(line.lstrip(' '))
-            # 将缩进翻倍：2→4, 4→8, 6→12
-            line = ' ' * leading_spaces + line
-        
         if is_list_item:
+            # 获取当前行的缩进
+            if line.startswith(' '):
+                leading_spaces = len(line) - len(line.lstrip(' '))
+            else:
+                leading_spaces = 0
+            
+            # 标准化缩进：
+            # 1. 计算相对于最小缩进的层级
+            relative_indent = leading_spaces - min_indent
+            
+            # 2. 如果使用2空格缩进单位，转换为4空格单位
+            if indent_unit == 2 and relative_indent > 0:
+                # 将2空格单位转换为4空格单位：2→4, 4→8, 6→12
+                level = relative_indent // 2
+                normalized_relative_indent = level * 4
+            else:
+                normalized_relative_indent = relative_indent
+            
+            # 3. 加上基准缩进（顶级列表的缩进）
+            final_indent = base_indent + normalized_relative_indent
+            
+            # 构建标准化的行
+            line = ' ' * final_indent + stripped
+            
             # 如果前一行不是空行且不是列表项，添加空行
             if i > 0 and fixed_lines and fixed_lines[-1].strip() and not prev_was_list:
                 fixed_lines.append('')
@@ -138,6 +174,15 @@ def process_markdown(md_content):
             prev_was_list = False
     
     md_content = '\n'.join(fixed_lines)
+    
+    # 调试输出：显示处理后的列表内容
+    if list_indents:
+        print(f"[列表处理] 检测到 {len(list_indents)} 个列表项")
+        print(f"[列表处理] 最小缩进: {min_indent}, 基准缩进: {base_indent}, 缩进单位: {indent_unit}")
+        # 显示处理后的前5个列表行
+        list_lines = [line for line in fixed_lines if re.match(r'^\s*[\-\*\+]\s+', line)]
+        for i, line in enumerate(list_lines[:5]):
+            print(f"[列表 {i+1}] 缩进{len(line) - len(line.lstrip())}空格: {repr(line[:50])}")
     
     # 手动处理删除线（GFM语法）~~text~~ -> <del>text</del>
     # 需要在markdown处理前先保护删除线内容
@@ -178,8 +223,13 @@ def process_markdown(md_content):
     print(f"[Mermaid] 共提取了 {len(mermaid_blocks)} 个Mermaid代码块")
     for i, code in enumerate(mermaid_blocks):
         placeholder = f'MERMAIDBLOCKPLACEHOLDER{i}ENDPLACEHOLDER'
+        # 清理代码：移除首尾空白，但保留内部换行
+        code_cleaned = code.strip()
+        # 对特殊字符进行HTML转义
+        import html
+        code_escaped = html.escape(code_cleaned)
         # 生成标准的Mermaid代码块HTML，确保类名为language-mermaid
-        wrapped_content = f'<pre><code class="language-mermaid">{code}</code></pre>'
+        wrapped_content = f'<pre><code class="language-mermaid">{code_escaped}</code></pre>'
         # 尝试多种替换方式，包括更复杂的包装情况
         replacements = [
             f'<p>{placeholder}</p>',
@@ -193,7 +243,7 @@ def process_markdown(md_content):
         for replacement in replacements:
             if replacement in html_content:
                 html_content = html_content.replace(replacement, wrapped_content)
-                print(f"[Mermaid {i}] 替换了 {replacement} 为 {wrapped_content}")
+                print(f"[Mermaid {i}] 替换了 {replacement}")
                 replaced = True
                 break
 
