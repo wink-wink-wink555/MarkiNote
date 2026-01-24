@@ -15,7 +15,7 @@
 
 **강력하면서도 완전 무료인 Markdown 문서 관리 및 미리보기 시스템** (｡･ω･｡)ﾉ♡
 
-[제품 미리보기](https://www.google.com/search?q=%23-%EC%A0%9C%ED%92%88-%EB%AF%B8%EB%A6%AC%EB%B3%B4%EA%B8%B0) • [빠른 시작](https://www.google.com/search?q=%23-%EB%B9%A0%EB%A5%B8-%EC%8B%9C%EC%9E%91) • [주요 기능](https://www.google.com/search?q=%23-%EC%A3%BC%EC%9A%94-%EA%B8%B0%EB%8A%A5) • [사용 가이드](https://www.google.com/search?q=%23-%EC%82%AC%EC%9A%A9-%EA%B0%80%EC%9D%B4%EB%93%9C) • [기여하기](https://www.google.com/search?q=%23-%EA%B8%B0%EC%97%AC%ED%95%98%EA%B8%B0)
+[제품 미리보기](#-제품 미리보기) • [빠른 시작](#-빠른 시작) • [사용 가이드](#-사용 가이드) • [기여하기](#-기여하기)
 
 </div>
 
@@ -272,3 +272,4 @@ MarkiNote/
 
 
 </div>
+
