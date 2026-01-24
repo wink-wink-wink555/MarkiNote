@@ -23,7 +23,7 @@
 
 ## ✨ 项目简介
 
-MarkiNote 是一个基于 Flask 的现代化 Markdown 文档管理系统，让你的 Markdown 文档管理变得简单又有趣！ (★ ω ★)
+MarkiNote✨ 是一个基于 Flask 的现代化 Markdown 文档管理系统，让你的 Markdown 文档管理变得简单又有趣！ (★ ω ★)
 
 ### 为什么选择 MarkiNote？
 
