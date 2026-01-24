@@ -5,6 +5,8 @@
 </div>
 
 <div align="center">
+  
+[English](README.en.md) | [简体中文](README.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 **A powerful and completely free Markdown document management and preview system** (｡･ω･｡)ﾉ♡
 
@@ -262,5 +264,6 @@ Special thanks to the following open-source projects:
 <p><strong>Made with ❤️ by <a href="https://github.com/wink-wink-wink555">wink-wink-wink555</a></strong></p>
 
 <p>If this project helps you, please give it a ⭐️ to show your support! (◕‿◕✿)</p>
+
 
 </div>
