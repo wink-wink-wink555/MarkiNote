@@ -108,12 +108,28 @@ cd MarkiNote
 pip install -r requirements.txt
 ```
 
-3️⃣ **启动应用**
+3️⃣ **下载前端资源库**
+
+项目使用了本地化的前端库（MathJax、Mermaid、html2canvas），已包含在 `static/libs/` 目录中。如需更新，可运行：
+
+```bash
+# Windows PowerShell
+Invoke-WebRequest -Uri "https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js" -OutFile "static/libs/tex-mml-chtml.js"
+Invoke-WebRequest -Uri "https://unpkg.com/mermaid@10/dist/mermaid.min.js" -OutFile "static/libs/mermaid.min.js"
+Invoke-WebRequest -Uri "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js" -OutFile "static/libs/html2canvas.min.js"
+
+# Linux/Mac
+curl -L -o static/libs/tex-mml-chtml.js "https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"
+curl -L -o static/libs/mermaid.min.js "https://unpkg.com/mermaid@10/dist/mermaid.min.js"
+curl -L -o static/libs/html2canvas.min.js "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
+```
+
+4️⃣ **启动应用**
 ```bash
 python main.py
 ```
 
-4️⃣ **打开浏览器**
+5️⃣ **打开浏览器**
 
 访问 `http://localhost:5000` 就可以开始使用啦！ ヾ(≧▽≦*)o
 
@@ -162,6 +178,10 @@ MarkiNote/
 │       ├── file_utils.py     # 文件处理
 │       └── markdown_utils.py # Markdown 渲染
 ├── static/                # 静态资源
+│   ├── libs/             # 前端库（本地化）
+│   │   ├── tex-mml-chtml.js      # MathJax
+│   │   ├── mermaid.min.js        # Mermaid
+│   │   └── html2canvas.min.js    # html2canvas
 │   ├── style.css         # 样式文件
 │   └── script.js         # 前端脚本
 ├── templates/            # HTML 模板
