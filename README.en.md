@@ -15,7 +15,7 @@
 
 **A powerful and completely free Markdown document management and preview system** (｡･ω･｡)ﾉ♡
 
-[Preview](https://www.google.com/search?q=%23-product-preview) • [Quick Start](https://www.google.com/search?q=%23-quick-start) • [Features](https://www.google.com/search?q=%23-features) • [User Guide](https://www.google.com/search?q=%23-user-guide) • [Contribute](https://www.google.com/search?q=%23-contribution)
+[Preview](#-product-preview) • [Quick Start](#-quick-start) • [Features](#-features) • [User Guide](#-user-guide) • [Contribute](#-contribution)
 
 </div>
 
@@ -272,4 +272,5 @@ Special thanks to the following open-source projects:
 
 
 </div>
+
 
