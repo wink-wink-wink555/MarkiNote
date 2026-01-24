@@ -25,10 +25,10 @@
         }
     };
     </script>
-    <!-- 使用jsDelivr CDN，国内访问更快 -->
-    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- 使用本地化的库文件，加载速度更快 -->
+    <script src="{{ url_for('static', filename='libs/tex-mml-chtml.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='libs/mermaid.min.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='libs/html2canvas.min.js') }}" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -97,6 +97,17 @@
         <!-- 主内容区 - 预览 -->
         <main class="preview-panel">
             <div class="preview-header">
+                <!-- 侧边栏折叠按钮 -->
+                <button id="sidebarToggleBtn" class="sidebar-toggle-btn" title="收起/展开侧边栏">
+                    <svg id="collapseIcon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+                        <path fill-rule="evenodd" d="M4.5 1a.5.5 0 0 1 .5.5v13a.5.5 0 0 1-1 0v-13a.5.5 0 0 1 .5-.5z"/>
+                    </svg>
+                    <svg id="expandIcon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="display: none;">
+                        <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+                        <path fill-rule="evenodd" d="M11.5 1a.5.5 0 0 1 .5.5v13a.5.5 0 0 1-1 0v-13a.5.5 0 0 1 .5-.5z"/>
+                    </svg>
+                </button>
                 <div class="preview-title">
                     <h2 id="previewTitle">选择文件以预览</h2>
                     <span class="file-path" id="currentFilePath"></span>
