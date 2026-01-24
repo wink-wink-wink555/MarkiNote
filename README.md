@@ -6,7 +6,7 @@
 
 <div align="center">
 
-[English](README.en.md) | [简体中文](README.md) | [日本語](README.ja.md)
+[English](README.en.md) | [简体中文](README.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
 ![MarkiNote Logo](https://img.shields.io/badge/MarkiNote-✨_Markdown_is_my_life-ff69b4?style=for-the-badge)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
