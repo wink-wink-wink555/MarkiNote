@@ -8,6 +8,11 @@
   
 [English](README.en.md) | [简体中文](README.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
+![MarkiNote Logo](https://img.shields.io/badge/MarkiNote-✨_Markdown_is_my_life-ff69b4?style=for-the-badge)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.0.0-green?style=for-the-badge&logo=flask)](https://flask.palletsprojects.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
 **A powerful and completely free Markdown document management and preview system** (｡･ω･｡)ﾉ♡
 
 [Preview](https://www.google.com/search?q=%23-product-preview) • [Quick Start](https://www.google.com/search?q=%23-quick-start) • [Features](https://www.google.com/search?q=%23-features) • [User Guide](https://www.google.com/search?q=%23-user-guide) • [Contribute](https://www.google.com/search?q=%23-contribution)
@@ -170,7 +175,7 @@ Visit `http://localhost:5000` to start using it! ヾ(≧▽≦*)o
 * **Code Highlighting**: Use ````language` to start a code block
 * **Mermaid Charts**: Supports flowcharts, sequence diagrams, and more visualizations
 
-For more detailed instructions, please check [lib/新手指南.md](https://www.google.com/search?q=lib/%E6%96%B0%E6%89%8B%E6%8C%87%E5%8D%97.md) (｡♥‿♥｡)
+For more detailed instructions, please check [lib/新手指南.md](lib/新手指南.md) (｡♥‿♥｡)
 
 ---
 
@@ -243,7 +248,7 @@ If you find a bug or have feature suggestions, please let us know in [Issues](ht
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -267,3 +272,4 @@ Special thanks to the following open-source projects:
 
 
 </div>
+
