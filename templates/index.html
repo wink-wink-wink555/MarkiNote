@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MarkiNote - 文档管理与预览</title>
+    <title>MarkiNote - Document Management & Preview</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- MathJax配置 -->
     <script>
     window.MathJax = {
         tex: {
@@ -25,15 +24,12 @@
         }
     };
     </script>
-    <!-- MathJax 使用 jsDelivr CDN 加载 -->
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
-    <!-- 其他库文件使用本地化，加载速度更快 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js  " defer></script>
     <script src="{{ url_for('static', filename='libs/mermaid.min.js') }}" defer></script>
     <script src="{{ url_for('static', filename='libs/html2canvas.min.js') }}" defer></script>
 </head>
 <body>
     <div class="app-container">
-        <!-- 侧边栏 - Library -->
         <aside class="library-panel">
             <div class="library-header">
                 <h2>
@@ -43,12 +39,12 @@
                     Library
                 </h2>
                 <div class="library-actions">
-                    <button id="searchBtn" class="btn btn-secondary" title="搜索文件">
+                    <button id="searchBtn" class="btn btn-secondary" title="Search files">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
                         </svg>
                     </button>
-                    <button id="themeToggleBtn" class="btn btn-secondary" title="切换主题">
+                    <button id="themeToggleBtn" class="btn btn-secondary" title="Toggle theme">
                         <svg id="sunIcon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display: none;">
                             <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/>
                         </svg>
@@ -59,9 +55,8 @@
                 </div>
             </div>
             
-            <!-- 搜索栏 -->
             <div class="search-bar" id="searchBar" style="display: none;">
-                <input type="text" id="searchInput" placeholder="搜索文件..." class="search-input">
+                <input type="text" id="searchInput" placeholder="Search files..." class="search-input">
                 <button class="search-close-btn" onclick="closeSearch()">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
@@ -69,25 +64,22 @@
                 </button>
             </div>
             
-            <!-- 面包屑导航 -->
             <div class="breadcrumb" id="breadcrumb">
-                <span class="breadcrumb-item active" data-path="">根目录</span>
+                <span class="breadcrumb-item active" data-path="">Root</span>
             </div>
             
-            <!-- 文件列表 -->
             <div class="file-list" id="fileList">
-                <div class="loading">加载中...</div>
+                <div class="loading">Loading...</div>
             </div>
             
-            <!-- 底部操作按钮 -->
             <div class="library-footer">
-                <button id="uploadBtn" class="btn btn-secondary footer-btn icon-btn-round" title="上传文件或文件夹">
+                <button id="uploadBtn" class="btn btn-secondary footer-btn icon-btn-round" title="Upload file or folder">
                     <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                         <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
                     </svg>
                 </button>
-                <button id="newBtn" class="btn btn-primary footer-btn icon-btn-round" title="新建文件或文件夹">
+                <button id="newBtn" class="btn btn-primary footer-btn icon-btn-round" title="New file or folder">
                     <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
                     </svg>
@@ -95,11 +87,9 @@
             </div>
         </aside>
 
-        <!-- 主内容区 - 预览 -->
         <main class="preview-panel">
             <div class="preview-header">
-                <!-- 侧边栏折叠按钮 -->
-                <button id="sidebarToggleBtn" class="sidebar-toggle-btn" title="收起/展开侧边栏">
+                <button id="sidebarToggleBtn" class="sidebar-toggle-btn" title="Collapse/Expand sidebar">
                     <svg id="collapseIcon" width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
                         <path fill-rule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
                         <path fill-rule="evenodd" d="M4.5 1a.5.5 0 0 1 .5.5v13a.5.5 0 0 1-1 0v-13a.5.5 0 0 1 .5-.5z"/>
@@ -110,7 +100,7 @@
                     </svg>
                 </button>
                 <div class="preview-title">
-                    <h2 id="previewTitle">选择文件以预览</h2>
+                    <h2 id="previewTitle">Select a file to preview</h2>
                     <span class="file-path" id="currentFilePath"></span>
                 </div>
                 <div class="preview-actions">
@@ -118,7 +108,7 @@
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M5.854 4.854a.5.5 0 1 0-.708-.708l-3.5 3.5a.5.5 0 0 0 0 .708l3.5 3.5a.5.5 0 0 0 .708-.708L2.707 8l3.147-3.146zm4.292 0a.5.5 0 0 1 .708-.708l3.5 3.5a.5.5 0 0 1 0 .708l-3.5 3.5a.5.5 0 0 1-.708-.708L13.293 8l-3.147-3.146z"/>
                         </svg>
-                        查看源代码
+                        View Source
                     </button>
                 </div>
             </div>
@@ -128,22 +118,20 @@
                     <svg width="64" height="64" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
                     </svg>
-                    <h3>欢迎使用 MarkiNote</h3>
-                    <p>从左侧选择一个文件开始预览</p>
-                    <p class="tip">支持的文件格式：.md、.markdown、.txt</p>
+                    <h3>Welcome to MarkiNote</h3>
+                    <p>Select a file from the left to start previewing</p>
+                    <p class="tip">Supported formats: .md, .markdown, .txt</p>
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- 隐藏的文件上传输入框 - 智能支持文件和文件夹 -->
     <input type="file" id="fileInput" style="display: none;" multiple>
 
-    <!-- 模态框 - 上传选择 -->
     <div id="uploadModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>选择上传方式</h3>
+                <h3>Select Upload Method</h3>
                 <button class="close-btn" onclick="closeUploadModal()">&times;</button>
             </div>
             <div class="modal-body upload-options">
@@ -151,26 +139,25 @@
                     <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
                     </svg>
-                    <span>上传文件</span>
+                    <span>Upload File</span>
                 </button>
                 <button class="upload-option-btn" onclick="selectUploadType('folder')">
                     <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M.54 3.87L.5 3a2 2 0 0 1 2-2h3.672a2 2 0 0 1 1.414.586l.828.828A2 2 0 0 0 9.828 3h3.982a2 2 0 0 1 1.992 2.181l-.637 7A2 2 0 0 1 13.174 14H2.826a2 2 0 0 1-1.991-1.819l-.637-7a1.99 1.99 0 0 1 .342-1.31z"/>
                     </svg>
-                    <span>上传文件夹</span>
+                    <span>Upload Folder</span>
                 </button>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeUploadModal()">取消</button>
+                <button class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
             </div>
         </div>
     </div>
 
-    <!-- 模态框 - 查看/编辑源代码 -->
     <div id="sourceModal" class="modal">
         <div class="modal-content source-modal-content" style="max-width: 90vw; width: 1000px;">
             <div class="modal-header">
-                <h3 id="sourceModalTitle">源代码</h3>
+                <h3 id="sourceModalTitle">Source Code</h3>
                 <button class="close-btn" id="sourceCloseBtn" onclick="closeSourceModal()">&times;</button>
             </div>
             <div class="modal-body">
@@ -179,18 +166,18 @@
             </div>
             <div class="modal-footer source-modal-footer">
                 <div id="sourceViewActions" class="source-actions-group">
-                    <button class="btn btn-secondary" onclick="editSourceCode()" title="编辑源代码">
+                    <button class="btn btn-secondary" onclick="editSourceCode()" title="Edit Source">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                         </svg>
-                        编辑
+                        Edit
                     </button>
-                    <button class="btn btn-primary" onclick="copySourceCode()" title="复制源代码">
+                    <button class="btn btn-primary" onclick="copySourceCode()" title="Copy Source">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
                             <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
                         </svg>
-                        复制
+                        Copy
                     </button>
                 </div>
                 <div id="sourceEditActions" class="source-actions-group" style="display: none;">
@@ -198,24 +185,23 @@
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
                         </svg>
-                        取消
+                        Cancel
                     </button>
                     <button class="btn btn-primary" onclick="saveSourceCode()">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v7.293l2.646-2.647a.5.5 0 0 1 .708.708l-3.5 3.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L7.5 9.293V2a2 2 0 0 1 2-2H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h2.5a.5.5 0 0 1 0 1H2z"/>
                         </svg>
-                        保存
+                        Save
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 模态框 - 选择新建类型 -->
     <div id="newSelectModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>选择新建类型</h3>
+                <h3>Select Creation Type</h3>
                 <button class="close-btn" onclick="closeNewSelectModal()">&times;</button>
             </div>
             <div class="modal-body upload-options">
@@ -223,154 +209,148 @@
                     <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
                     </svg>
-                    <span>新建文件</span>
+                    <span>New File</span>
                 </button>
                 <button class="upload-option-btn" onclick="selectNewType('folder')">
                     <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9z"/>
                     </svg>
-                    <span>新建文件夹</span>
+                    <span>New Folder</span>
                 </button>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeNewSelectModal()">取消</button>
+                <button class="btn btn-secondary" onclick="closeNewSelectModal()">Cancel</button>
             </div>
         </div>
     </div>
 
-    <!-- 模态框 - 新建文件 -->
     <div id="newFileModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>新建文件</h3>
+                <h3>Create New File</h3>
                 <button class="close-btn" onclick="closeNewFileModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <div style="margin-bottom: 12px;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">文件名</label>
-                    <input type="text" id="fileNameInput" placeholder="请输入文件名（不含扩展名）" class="input-text">
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">Filename</label>
+                    <input type="text" id="fileNameInput" placeholder="Enter filename (without extension)" class="input-text">
                 </div>
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">文件类型</label>
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">File Type</label>
                     <select id="fileExtensionSelect" class="input-text" style="cursor: pointer;">
                         <option value="md" selected>.md (Markdown)</option>
                         <option value="markdown">.markdown (Markdown)</option>
-                        <option value="txt">.txt (文本)</option>
+                        <option value="txt">.txt (Text)</option>
                     </select>
                 </div>
                 <p style="color: var(--text-secondary); font-size: 13px; margin-top: 12px;">
-                    💡 提示：文件名无需输入扩展名
+                    💡 Tip: No need to include the extension in the filename.
                 </p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeNewFileModal()">取消</button>
-                <button class="btn btn-primary" onclick="createFile()">创建</button>
+                <button class="btn btn-secondary" onclick="closeNewFileModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createFile()">Create</button>
             </div>
         </div>
     </div>
 
-    <!-- 模态框 - 新建文件夹 -->
     <div id="newFolderModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>新建文件夹</h3>
+                <h3>Create New Folder</h3>
                 <button class="close-btn" onclick="closeNewFolderModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <input type="text" id="folderNameInput" placeholder="文件夹名称" class="input-text">
+                <input type="text" id="folderNameInput" placeholder="Folder name" class="input-text">
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeNewFolderModal()">取消</button>
-                <button class="btn btn-primary" onclick="createFolder()">创建</button>
+                <button class="btn btn-secondary" onclick="closeNewFolderModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createFolder()">Create</button>
             </div>
         </div>
     </div>
 
-    <!-- 模态框 - 移动文件/文件夹 -->
     <div id="moveModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>移动到文件夹</h3>
+                <h3>Move to Folder</h3>
                 <button class="close-btn" onclick="closeMoveModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <p style="margin-bottom: 16px; color: var(--text-secondary);">
-                    正在移动: <strong id="moveItemName"></strong>
+                    Moving: <strong id="moveItemName"></strong>
                 </p>
                 <div class="folder-list" id="folderList">
-                    <div class="loading">加载中...</div>
+                    <div class="loading">Loading...</div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeMoveModal()">取消</button>
+                <button class="btn btn-secondary" onclick="closeMoveModal()">Cancel</button>
             </div>
         </div>
     </div>
 
-    <!-- 模态框 - 重命名文件/文件夹 -->
     <div id="renameModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>重命名</h3>
+                <h3>Rename</h3>
                 <button class="close-btn" onclick="closeRenameModal()">&times;</button>
             </div>
             <div class="modal-body">
                 <p style="margin-bottom: 12px; color: var(--text-secondary);">
-                    原名称: <strong id="renameItemOldName"></strong>
+                    Original Name: <strong id="renameItemOldName"></strong>
                 </p>
-                <input type="text" id="renameInput" placeholder="输入新名称" class="input-text">
+                <input type="text" id="renameInput" placeholder="Enter new name" class="input-text">
                 <p id="renameError" style="color: var(--danger-color); margin-top: 8px; font-size: 13px; display: none;"></p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeRenameModal()">取消</button>
-                <button class="btn btn-primary" onclick="confirmRename()">确定</button>
+                <button class="btn btn-secondary" onclick="closeRenameModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmRename()">Confirm</button>
             </div>
         </div>
     </div>
 
-    <!-- 右键菜单 - Library文件/文件夹 -->
     <div id="contextMenu" class="context-menu">
         <div class="context-menu-item" onclick="contextMenuAction('rename')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z"/>
             </svg>
-            重命名
+            Rename
         </div>
         <div class="context-menu-item" onclick="contextMenuAction('move')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8.5 1.5A1.5 1.5 0 0 1 10 0h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h4a1.5 1.5 0 0 1 1.5 1.5v7.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 9.293V1.5z"/>
             </svg>
-            移动到...
+            Move to...
         </div>
         <div class="context-menu-item danger" onclick="contextMenuAction('delete')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                 <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
             </svg>
-            删除
+            Delete
         </div>
     </div>
 
-    <!-- 右键菜单 - 预览内容文字选中 -->
     <div id="previewContextMenu" class="context-menu">
         <div class="context-menu-item" onclick="previewContextMenuAction('copy')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
                 <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
             </svg>
-            复制
+            Copy
         </div>
         <div class="context-menu-item" onclick="previewContextMenuAction('bing')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM4.5 7.5a.5.5 0 0 0 0 1h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H4.5z"/>
             </svg>
-            用必应搜索
+            Search with Bing
         </div>
         <div class="context-menu-item" id="findInSourceMenuItem" onclick="previewContextMenuAction('findInSource')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
             </svg>
-            在源代码中显示
+            Show in Source
         </div>
     </div>
 
