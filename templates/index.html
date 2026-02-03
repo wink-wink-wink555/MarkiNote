@@ -18,6 +18,9 @@
             processEscapes: true,
             processEnvironments: true
         },
+        chtml: {
+            fontURL: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/output/chtml/fonts/woff-v2'
+        },
         options: {
             skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
             ignoreHtmlClass: 'mermaid|language-mermaid'
@@ -29,8 +32,8 @@
         }
     };
     </script>
-    <!-- MathJax 使用 jsDelivr CDN 加载 -->
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+    <!-- MathJax 使用本地文件加载 (v3.2.2) -->
+    <script src="{{ url_for('static', filename='libs/tex-mml-chtml.js') }}" defer></script>
     <!-- 其他库文件使用本地化，加载速度更快 -->
     <script src="{{ url_for('static', filename='libs/mermaid.min.js') }}" defer></script>
     <script src="{{ url_for('static', filename='libs/html2canvas.min.js') }}" defer></script>
