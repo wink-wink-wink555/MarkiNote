@@ -88,6 +88,11 @@ MarkiNote✨ 是一个基于 Flask 的现代化 Markdown 文档管理系统，�
 <p><em>一键查看、编辑文件源代码，效率杠杠滴！</em></p>
 </div>
 
+<div align="center">
+<img src="images/7.png" alt="示例7" width="600"/>
+<p><em>一键进入全屏模式，展示汇报更聚焦！</em></p>
+</div>
+
 ---
 
 ## 🚀 快速开始
