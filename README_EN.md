@@ -120,8 +120,6 @@ Currently supports the following AI services (all OpenAI API-compatible, easily 
 
 ## 📸 Preview
 
-> **Note**: Place your screenshots in the `images/` directory.
-
 <div align="center">
 <img src="images/1.png" alt="Main Interface" width="600"/>
 <p><em>📖 Content browsing & file management — document tree + live rendering</em></p>
