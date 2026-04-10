@@ -30,6 +30,8 @@
     --modal-bg: #ffffff;
     --table-header-bg: #f6f8fa;
     --table-header-text: #1e293b;
+    --lib-panel-width: 320px;
+    --ai-panel-width: 420px;
 }
 
 /* 夜间模式 */
@@ -48,7 +50,104 @@ body.dark-mode {
     --table-header-text: #f1f5f9;
 }
 
+/* 蓝色主题 */
+body.blue-mode {
+    --bg-color: #eff6ff;
+    --sidebar-bg: #dbeafe;
+    --text-color: #1e3a5f;
+    --text-secondary: #5b7fa5;
+    --border-color: #bfdbfe;
+    --hover-bg: #dbeafe;
+    --code-bg: #dbeafe;
+    --selected-bg: #93c5fd;
+    --selected-border: #2563eb;
+    --modal-bg: #eff6ff;
+    --table-header-bg: #dbeafe;
+    --table-header-text: #1e3a5f;
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+}
+
+/* 粉色主题 */
+body.pink-mode {
+    --bg-color: #fdf2f8;
+    --sidebar-bg: #fce7f3;
+    --text-color: #701a3e;
+    --text-secondary: #9d4e6c;
+    --border-color: #fbcfe8;
+    --hover-bg: #fce7f3;
+    --code-bg: #fce7f3;
+    --selected-bg: #f9a8d4;
+    --selected-border: #ec4899;
+    --modal-bg: #fdf2f8;
+    --table-header-bg: #fce7f3;
+    --table-header-text: #701a3e;
+    --primary-color: #ec4899;
+    --primary-hover: #db2777;
+}
+
+body.blue-mode .markdown-body,
+body.pink-mode .markdown-body,
 body.dark-mode .markdown-body {
+    color: var(--text-color);
+}
+
+body.blue-mode .markdown-body h1,
+body.blue-mode .markdown-body h2,
+body.blue-mode .markdown-body h3,
+body.blue-mode .markdown-body h4,
+body.blue-mode .markdown-body h5,
+body.blue-mode .markdown-body h6,
+body.pink-mode .markdown-body h1,
+body.pink-mode .markdown-body h2,
+body.pink-mode .markdown-body h3,
+body.pink-mode .markdown-body h4,
+body.pink-mode .markdown-body h5,
+body.pink-mode .markdown-body h6 {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+body.blue-mode .markdown-body code,
+body.pink-mode .markdown-body code {
+    background-color: var(--code-bg);
+}
+
+body.blue-mode .markdown-body pre,
+body.pink-mode .markdown-body pre {
+    background-color: var(--code-bg);
+}
+
+body.blue-mode .modal-content,
+body.pink-mode .modal-content {
+    background: var(--modal-bg);
+    color: var(--text-color);
+}
+
+body.blue-mode .markdown-body table th,
+body.pink-mode .markdown-body table th {
+    background-color: var(--table-header-bg);
+    color: var(--table-header-text);
+}
+
+body.blue-mode .markdown-body table td,
+body.pink-mode .markdown-body table td {
+    border-color: var(--border-color);
+}
+
+body.blue-mode .markdown-body blockquote,
+body.pink-mode .markdown-body blockquote {
+    border-left-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+body.blue-mode .welcome-message,
+body.pink-mode .welcome-message {
+    color: var(--text-secondary);
+}
+
+body.blue-mode .welcome-message h3,
+body.pink-mode .welcome-message h3 {
     color: var(--text-color);
 }
 
@@ -112,7 +211,7 @@ body {
 /* ===== 应用容器 ===== */
 .app-container {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: var(--lib-panel-width) 1fr 0;
     height: 100vh;
     gap: 0;
     transition: grid-template-columns 0.3s ease;
@@ -120,7 +219,7 @@ body {
 
 /* 侧边栏折叠状态 */
 .app-container.sidebar-collapsed {
-    grid-template-columns: 0 1fr;
+    grid-template-columns: 0 1fr 0;
 }
 
 .app-container.sidebar-collapsed .library-panel {
@@ -137,6 +236,41 @@ body {
     flex-direction: column;
     overflow: hidden;
     transition: transform 0.3s ease, opacity 0.3s ease;
+    position: relative;
+}
+
+/* 拖拽调整宽度手柄 */
+.resize-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    z-index: 10;
+}
+
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 1px;
+    width: 3px;
+    transition: background 0.2s;
+}
+
+.resize-handle:hover::after,
+.resize-handle.dragging::after {
+    background: var(--primary-color);
+    border-radius: 2px;
+}
+
+.library-panel > .resize-handle {
+    right: -2px;
+}
+
+.ai-panel > .resize-handle {
+    left: -2px;
 }
 
 .library-header {
@@ -1192,10 +1326,123 @@ body.editing-source #sourceCloseBtn {
     opacity: 1;
 }
 
+/* ===== 设置弹窗 ===== */
+.settings-section {
+    margin-bottom: 24px;
+}
+
+.settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.settings-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 10px;
+}
+
+.settings-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+
+.theme-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.theme-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.theme-option:hover {
+    background: var(--hover-bg);
+}
+
+.theme-option.active {
+    border-color: var(--primary-color);
+    background: var(--hover-bg);
+}
+
+.theme-option span {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.theme-preview {
+    width: 60px;
+    height: 42px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    border: 1px solid rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.theme-preview .tp-sidebar {
+    width: 18px;
+    flex-shrink: 0;
+}
+
+.theme-preview .tp-content {
+    flex: 1;
+    padding: 6px 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.theme-preview .tp-line {
+    height: 3px;
+    border-radius: 2px;
+    width: 100%;
+}
+
+.theme-preview .tp-line.short {
+    width: 60%;
+}
+
+.theme-preview-light {
+    background: #ffffff;
+}
+.theme-preview-light .tp-sidebar { background: #f8fafc; border-right: 1px solid #e2e8f0; }
+.theme-preview-light .tp-line { background: #cbd5e1; }
+
+.theme-preview-dark {
+    background: #1e293b;
+}
+.theme-preview-dark .tp-sidebar { background: #0f172a; border-right: 1px solid #334155; }
+.theme-preview-dark .tp-line { background: #475569; }
+
+.theme-preview-blue {
+    background: #eff6ff;
+}
+.theme-preview-blue .tp-sidebar { background: #dbeafe; border-right: 1px solid #bfdbfe; }
+.theme-preview-blue .tp-line { background: #93c5fd; }
+
+.theme-preview-pink {
+    background: #fdf2f8;
+}
+.theme-preview-pink .tp-sidebar { background: #fce7f3; border-right: 1px solid #fbcfe8; }
+.theme-preview-pink .tp-line { background: #f9a8d4; }
+
 /* ===== 响应式设计 ===== */
 @media (max-width: 768px) {
     .app-container {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 0;
     }
     
     .library-panel {

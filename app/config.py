@@ -6,6 +6,7 @@ class Config:
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     LIBRARY_FOLDER = 'lib'  # 改为lib文件夹
     ALLOWED_EXTENSIONS = {'md', 'markdown', 'txt'}
+    SEND_FILE_MAX_AGE_DEFAULT = 0  # 开发模式下不缓存静态文件
     
     @staticmethod
     def init_app(app):

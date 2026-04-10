@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='ai-chat.css') }}">
     <!-- MathJax配置 -->
     <script>
     window.MathJax = {
@@ -47,7 +48,7 @@
                     <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: text-bottom; margin-right: 6px;">
                         <path d="M1 2.828c.885-.37 2.154-.769 3.388-.893 1.33-.134 2.458.063 3.112.752v9.746c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.809 8.985.936 8 1.783z"/>
                     </svg>
-                    Library
+                    MarkiNote
                 </h2>
                 <div class="library-actions">
                     <button id="searchBtn" class="btn btn-secondary" title="搜索文件">
@@ -55,12 +56,10 @@
                             <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
                         </svg>
                     </button>
-                    <button id="themeToggleBtn" class="btn btn-secondary" title="切换主题">
-                        <svg id="sunIcon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display: none;">
-                            <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/>
-                        </svg>
-                        <svg id="moonIcon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278zM4.858 1.311A7.269 7.269 0 0 0 1.025 7.71c0 4.02 3.279 7.276 7.319 7.276a7.316 7.316 0 0 0 5.205-2.162c-.337.042-.68.063-1.029.063-4.61 0-8.343-3.714-8.343-8.29 0-1.167.242-2.278.681-3.286z"/>
+                    <button id="settingsBtn" class="btn btn-secondary" title="设置">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                            <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
                         </svg>
                     </button>
                 </div>
@@ -125,7 +124,14 @@
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M5.854 4.854a.5.5 0 1 0-.708-.708l-3.5 3.5a.5.5 0 0 0 0 .708l3.5 3.5a.5.5 0 0 0 .708-.708L2.707 8l3.147-3.146zm4.292 0a.5.5 0 0 1 .708-.708l3.5 3.5a.5.5 0 0 1 0 .708l-3.5 3.5a.5.5 0 0 1-.708-.708L13.293 8l-3.147-3.146z"/>
                         </svg>
-                        查看源代码
+                        <span class="btn-text">查看源代码</span>
+                    </button>
+                    <button id="aiToggleBtn" class="ai-toggle-btn" title="AI 助手">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/>
+                            <path d="M10 21h4"/>
+                            <path d="M12 18v3"/>
+                        </svg>
                     </button>
                 </div>
             </div>
@@ -141,6 +147,110 @@
                 </div>
             </div>
         </main>
+
+        <!-- AI 助手侧边栏 -->
+        <aside class="ai-panel" id="aiPanel">
+            <div class="ai-panel-header">
+                <h2>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/>
+                        <path d="M10 21h4"/>
+                        <path d="M12 18v3"/>
+                    </svg>
+                    <span class="ai-title-text">AI 助手</span>
+                </h2>
+                <div class="ai-header-actions">
+                    <button id="aiNewChatBtn" title="新对话">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+                        </svg>
+                    </button>
+                    <button id="aiHistoryBtn" title="对话历史">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933zm1.37.71a7.01 7.01 0 0 0-.439-.27l.493-.87a8.025 8.025 0 0 1 .979.654l-.615.789a6.996 6.996 0 0 0-.418-.302zm1.834 1.79a6.99 6.99 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7.08 7.08 0 0 0-.214-.468l.893-.45a7.976 7.976 0 0 1 .45 1.088l-.95.313a7.023 7.023 0 0 0-.179-.483zm.53 2.507a6.991 6.991 0 0 0-.1-1.025l.985-.17c.067.386.106.778.116 1.17l-1 .025zm-.131 1.538c.033-.17.06-.339.081-.51l.993.123a7.957 7.957 0 0 1-.23 1.155l-.964-.267c.046-.165.086-.332.12-.501zm-.952 2.379c.184-.29.346-.594.486-.908l.914.405c-.16.36-.345.706-.555 1.038l-.845-.535zm-.964 1.205c.122-.122.239-.248.35-.378l.758.653a8.073 8.073 0 0 1-.401.432l-.707-.707z"/>
+                            <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
+                            <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
+                        </svg>
+                    </button>
+                    <button id="aiSettingsBtn" title="设置">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                            <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+                        </svg>
+                    </button>
+                    <button id="aiCloseBtn" title="关闭">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 设置面板 -->
+            <div class="ai-settings-panel" id="aiSettingsPanel">
+                <div class="ai-setting-group">
+                    <label>AI 提供商</label>
+                    <select id="aiProviderSelect">
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="kimi">Kimi (Moonshot)</option>
+                    </select>
+                </div>
+                <div class="ai-setting-group">
+                    <label>模型</label>
+                    <select id="aiModelSelect"></select>
+                </div>
+                <div class="ai-setting-group">
+                    <label>API Key</label>
+                    <div class="ai-key-row">
+                        <input type="password" id="aiApiKeyInput" placeholder="输入你的 API Key">
+                        <button id="aiValidateKeyBtn">验证</button>
+                    </div>
+                    <div class="ai-key-status" id="aiKeyStatus"></div>
+                </div>
+            </div>
+
+            <!-- 对话历史面板 -->
+            <div class="ai-history-panel" id="aiHistoryPanel">
+                <div class="ai-history-list" id="aiHistoryList"></div>
+            </div>
+
+            <!-- 对话主区域 -->
+            <div class="ai-chat-area" id="aiChatArea">
+                <div class="ai-messages" id="aiMessages">
+                    <div class="ai-welcome">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/>
+                            <path d="M10 21h4"/>
+                            <path d="M12 18v3"/>
+                        </svg>
+                        <h3>AI 助手</h3>
+                        <p>我可以帮你管理文档、编辑文件、搜索资料。<br>
+                        先在上方设置中配置 API Key 即可开始。</p>
+                    </div>
+                </div>
+
+                <!-- 统一附件区域（上下文文件 + 手动附件） -->
+                <div class="ai-attachments" id="aiAttachments" style="display:none"></div>
+                <div id="aiContextBar" style="display:none"><span id="aiContextFile"></span></div>
+
+                <!-- 输入区域 -->
+                <div class="ai-input-area">
+                    <div class="ai-input-wrapper">
+                        <button class="ai-attach-btn" id="aiAttachBtn" title="添加文件">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z"/>
+                            </svg>
+                        </button>
+                        <textarea id="aiInput" placeholder="输入消息..." rows="1"></textarea>
+                        <button class="ai-send-btn" id="aiSendBtn" title="发送">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07Zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493Z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
     </div>
 
     <!-- 隐藏的文件上传输入框 - 智能支持文件和文件夹 -->
@@ -190,14 +300,14 @@
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                         </svg>
-                        编辑
+                        <span class="btn-text">编辑</span>
                     </button>
                     <button class="btn btn-primary" onclick="copySourceCode()" title="复制源代码">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
                             <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
                         </svg>
-                        复制
+                        <span class="btn-text">复制</span>
                     </button>
                 </div>
                 <div id="sourceEditActions" class="source-actions-group" style="display: none;">
@@ -205,13 +315,13 @@
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
                         </svg>
-                        取消
+                        <span class="btn-text">取消</span>
                     </button>
                     <button class="btn btn-primary" onclick="saveSourceCode()">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                             <path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v7.293l2.646-2.647a.5.5 0 0 1 .708.708l-3.5 3.5a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L7.5 9.293V2a2 2 0 0 1 2-2H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h2.5a.5.5 0 0 1 0 1H2z"/>
                         </svg>
-                        保存
+                        <span class="btn-text">保存</span>
                     </button>
                 </div>
             </div>
@@ -254,11 +364,11 @@
             </div>
             <div class="modal-body">
                 <div style="margin-bottom: 12px;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">文件名</label>
+                    <label data-role="fname" style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">文件名</label>
                     <input type="text" id="fileNameInput" placeholder="请输入文件名（不含扩展名）" class="input-text">
                 </div>
                 <div>
-                    <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">文件类型</label>
+                    <label data-role="ftype" style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-color);">文件类型</label>
                     <select id="fileExtensionSelect" class="input-text" style="cursor: pointer;">
                         <option value="md" selected>.md (Markdown)</option>
                         <option value="markdown">.markdown (Markdown)</option>
@@ -335,6 +445,61 @@
         </div>
     </div>
 
+    <!-- 模态框 - 设置 -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content" style="min-width:360px;max-width:440px;">
+            <div class="modal-header">
+                <h3>设置</h3>
+                <button class="close-btn" onclick="closeSettingsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <label class="settings-label">语言 / Language</label>
+                    <select id="settingsLanguageSelect" class="input-text" onchange="setLanguage(this.value)">
+                        <option value="zh-CN">简体中文</option>
+                        <option value="en">English</option>
+                        <option value="fr">Français</option>
+                        <option value="ja">日本語</option>
+                    </select>
+                    <p class="settings-hint">AI 回复将使用所选语言</p>
+                </div>
+                <div class="settings-section">
+                    <label class="settings-label">主题 / Theme</label>
+                    <div class="theme-grid">
+                        <div class="theme-option" data-theme="light" onclick="setTheme('light')">
+                            <div class="theme-preview theme-preview-light">
+                                <div class="tp-sidebar"></div>
+                                <div class="tp-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+                            </div>
+                            <span>浅色</span>
+                        </div>
+                        <div class="theme-option" data-theme="dark" onclick="setTheme('dark')">
+                            <div class="theme-preview theme-preview-dark">
+                                <div class="tp-sidebar"></div>
+                                <div class="tp-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+                            </div>
+                            <span>深色</span>
+                        </div>
+                        <div class="theme-option" data-theme="blue" onclick="setTheme('blue')">
+                            <div class="theme-preview theme-preview-blue">
+                                <div class="tp-sidebar"></div>
+                                <div class="tp-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+                            </div>
+                            <span>蓝色</span>
+                        </div>
+                        <div class="theme-option" data-theme="pink" onclick="setTheme('pink')">
+                            <div class="theme-preview theme-preview-pink">
+                                <div class="tp-sidebar"></div>
+                                <div class="tp-content"><div class="tp-line"></div><div class="tp-line short"></div></div>
+                            </div>
+                            <span>粉色</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 右键菜单 - Library文件/文件夹 -->
     <div id="contextMenu" class="context-menu">
         <div class="context-menu-item" onclick="contextMenuAction('rename')">
@@ -381,6 +546,8 @@
         </div>
     </div>
 
+    <script defer src="{{ url_for('static', filename='i18n.js') }}"></script>
     <script defer src="{{ url_for('static', filename='script.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='ai-chat.js') }}"></script>
 </body>
 </html>

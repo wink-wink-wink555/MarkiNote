@@ -410,6 +410,43 @@ def save_file():
     except Exception as e:
         return jsonify({'error': f'保存失败: {str(e)}'}), 500
 
+@library_bp.route('/api/library/check-updates', methods=['GET'])
+def check_updates():
+    """返回目录和文件的最新修改时间，供前端轮询检测变更"""
+    lib_dir = current_app.config['LIBRARY_FOLDER']
+    rel_path = request.args.get('path', '')
+    file_path = request.args.get('file', '')
+
+    full_dir = os.path.join(lib_dir, rel_path) if rel_path else lib_dir
+    dir_mtime = 0.0
+    file_mtime = 0.0
+
+    if os.path.isdir(full_dir):
+        try:
+            dir_mtime = os.path.getmtime(full_dir)
+            for entry in os.scandir(full_dir):
+                try:
+                    mt = entry.stat(follow_symlinks=False).st_mtime
+                    if mt > dir_mtime:
+                        dir_mtime = mt
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
+    if file_path:
+        full_file = os.path.join(lib_dir, file_path)
+        if not os.path.abspath(full_file).startswith(os.path.abspath(lib_dir)):
+            return jsonify({'dir_mtime': dir_mtime, 'file_mtime': 0})
+        if os.path.isfile(full_file):
+            try:
+                file_mtime = os.path.getmtime(full_file)
+            except OSError:
+                pass
+
+    return jsonify({'dir_mtime': dir_mtime, 'file_mtime': file_mtime})
+
+
 @library_bp.route('/api/library/create-file', methods=['POST'])
 def create_file():
     """创建新文件"""

@@ -6,6 +6,7 @@ let selectedText = ''; // 存储选中的文本
 let isEditingSource = false; // 是否正在编辑源代码
 let allFiles = []; // 存储所有文件用于搜索
 let hasUnsavedChanges = false; // 是否有未保存的改动
+let _lastDirItemsHash = ''; // 目录内容指纹，用于静默刷新去重
 
 // DOM元素
 const fileList = document.getElementById('fileList');
@@ -16,7 +17,8 @@ const breadcrumb = document.getElementById('breadcrumb');
 const uploadBtn = document.getElementById('uploadBtn');
 const newBtn = document.getElementById('newBtn');
 const searchBtn = document.getElementById('searchBtn');
-const themeToggleBtn = document.getElementById('themeToggleBtn');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
 const fileInput = document.getElementById('fileInput');
 const viewSourceBtn = document.getElementById('viewSourceBtn');
 const contextMenu = document.getElementById('contextMenu');
@@ -78,6 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     initializeMermaid();
     loadSidebarState();
+    startFileWatcher();
 });
 
 // 设置事件监听
@@ -85,7 +88,7 @@ function setupEventListeners() {
     uploadBtn.addEventListener('click', openUploadModal);
     newBtn.addEventListener('click', openNewSelectModal);
     searchBtn.addEventListener('click', toggleSearch);
-    themeToggleBtn.addEventListener('click', toggleTheme);
+    settingsBtn.addEventListener('click', openSettingsModal);
     fileInput.addEventListener('change', handleFileUpload);
     viewSourceBtn.addEventListener('click', openSourceModal);
     searchInput.addEventListener('input', handleSearch);
@@ -118,6 +121,9 @@ function setupEventListeners() {
         }
         if (e.target === renameModal) {
             closeRenameModal();
+        }
+        if (e.target === settingsModal) {
+            closeSettingsModal();
         }
     });
     
@@ -180,9 +186,12 @@ function selectUploadType(type) {
 }
 
 // 加载Library（优化版，添加性能监控）
-async function loadLibrary(path = '') {
+// silent=true 时不显示"加载中"提示，用于后台定时刷新
+async function loadLibrary(path = '', silent = false) {
     currentPath = path;
-    fileList.innerHTML = '<div class="loading">加载中...</div>';
+    if (!silent) {
+        fileList.innerHTML = '<div class="loading">' + t('loading') + '</div>';
+    }
     
     const startTime = performance.now();
     
@@ -196,6 +205,13 @@ async function loadLibrary(path = '') {
         const parseTime = performance.now() - parseStart;
         
         if (data.success) {
+            // 静默模式下，如果目录内容没变则跳过 DOM 重建
+            const itemsHash = JSON.stringify(data.items.map(i => i.path + '|' + i.name + '|' + (i.size || '')));
+            if (silent && itemsHash === _lastDirItemsHash) {
+                return;
+            }
+            _lastDirItemsHash = itemsHash;
+
             const renderStart = performance.now();
             displayFiles(data.items);
             const renderTime = performance.now() - renderStart;
@@ -203,20 +219,24 @@ async function loadLibrary(path = '') {
             updateBreadcrumb(path);
             
             const totalTime = performance.now() - startTime;
-            console.log(`📊 加载性能: 总计${totalTime.toFixed(0)}ms | 网络${fetchTime.toFixed(0)}ms | 解析${parseTime.toFixed(0)}ms | 渲染${renderTime.toFixed(0)}ms | 文件数${data.items.length}`);
-        } else {
-            showError('加载文件列表失败');
+            if (!silent) {
+                console.log(`📊 加载性能: 总计${totalTime.toFixed(0)}ms | 网络${fetchTime.toFixed(0)}ms | 解析${parseTime.toFixed(0)}ms | 渲染${renderTime.toFixed(0)}ms | 文件数${data.items.length}`);
+            }
+        } else if (!silent) {
+            showError(t('load_list_fail'));
         }
     } catch (error) {
-        showError('加载失败: ' + error.message);
-        console.error('❌ 加载错误:', error);
+        if (!silent) {
+            showError(t('load_fail') + error.message);
+            console.error('❌ 加载错误:', error);
+        }
     }
 }
 
 // 显示文件列表（优化版，使用DocumentFragment减少重绘）
 function displayFiles(items) {
     if (items.length === 0) {
-        fileList.innerHTML = '<div class="empty-state">📁 文件夹为空<br><small style="color: var(--text-secondary); margin-top: 8px;">点击"上传"按钮添加文件</small></div>';
+        fileList.innerHTML = '<div class="empty-state">' + t('folder_empty') + '<br><small style="color: var(--text-secondary); margin-top: 8px;">' + t('folder_empty_hint') + '</small></div>';
         return;
     }
     
@@ -244,13 +264,18 @@ function displayFiles(items) {
                 <div class="file-name">${item.name}</div>
                 <div class="file-meta">${size} ${size && modified ? '•' : ''} ${modified}</div>
             </div>
-            <button class="file-menu-btn" onclick="showContextMenuFromButton(event, '${item.path}', '${item.type}')" title="更多操作">
+            <button class="file-menu-btn" onclick="showContextMenuFromButton(event, '${item.path}', '${item.type}')" title="${t('more_actions')}">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>
                 </svg>
             </button>
         `;
         
+        // 保持当前选中文件的高亮状态
+        if (selectedFile && item.path === selectedFile) {
+            div.classList.add('selected');
+        }
+
         fragment.appendChild(div);
     });
     
@@ -262,7 +287,7 @@ function displayFiles(items) {
 // 更新面包屑导航
 function updateBreadcrumb(path) {
     const parts = path ? path.split('/').filter(p => p) : [];
-    let html = '<span class="breadcrumb-item" onclick="loadLibrary(\'\')">根目录</span>';
+    let html = '<span class="breadcrumb-item" onclick="loadLibrary(\'\')">' + t('root_dir') + '</span>';
     
     let accumulated = '';
     parts.forEach((part, index) => {
@@ -299,12 +324,20 @@ function selectFile(path) {
     
     // 启用查看源代码按钮
     viewSourceBtn.disabled = false;
+
+    // 同步 AI 上下文
+    if (typeof window.setAIContextFile === 'function') {
+        window.setAIContextFile(path);
+    }
 }
 
 // 预览文件
-async function previewFile(path) {
-    previewContent.innerHTML = '<div class="loading">加载中...</div>';
-    previewTitle.textContent = '加载中...';
+// silent=true 时不显示"加载中"提示，用于后台定时刷新
+async function previewFile(path, silent = false) {
+    if (!silent) {
+        previewContent.innerHTML = '<div class="loading">' + t('loading') + '</div>';
+        previewTitle.textContent = t('loading');
+    }
     currentFilePath.textContent = path;
     
     try {
@@ -319,6 +352,13 @@ async function previewFile(path) {
         const data = await response.json();
         
         if (data.success) {
+            // 静默模式下，如果内容没变则不刷新 DOM，避免打断用户阅读
+            if (silent && currentMarkdownSource === (data.raw_markdown || '')) {
+                return;
+            }
+
+            const scrollTop = previewContent.scrollTop;
+
             previewTitle.textContent = data.filename;
             currentMarkdownSource = data.raw_markdown || '';
             previewContent.innerHTML = `<div class="markdown-body">${data.html}</div>`;
@@ -334,11 +374,18 @@ async function previewFile(path) {
             
             // 触发MathJax渲染
             renderMathJax();
-        } else {
-            showError(data.error || '预览失败');
+
+            // 静默刷新时恢复滚动位置，避免阅读位置跳动
+            if (silent) {
+                previewContent.scrollTop = scrollTop;
+            }
+        } else if (!silent) {
+            showError(data.error || t('preview_fail'));
         }
     } catch (error) {
-        showError('预览失败: ' + error.message);
+        if (!silent) {
+            showError(t('preview_fail') + ': ' + error.message);
+        }
     }
 }
 
@@ -355,7 +402,7 @@ async function handleFileUpload(event) {
     });
     
     if (validFiles.length === 0) {
-        showError('没有找到支持的文件（.md, .markdown, .txt）');
+        showError(t('no_supported_files'));
         fileInput.value = '';
         return;
     }
@@ -404,9 +451,9 @@ async function handleFileUpload(event) {
     
     // 显示上传结果
     if (successCount > 0) {
-        showSuccess(`成功上传 ${successCount} 个文件${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+        showSuccess(t('upload_success', {count: successCount}) + (failCount > 0 ? t('upload_fail_count', {count: failCount}) : ''));
     } else {
-        showError('上传失败');
+        showError(t('upload_fail'));
     }
     
     // 清空文件输入
@@ -433,7 +480,7 @@ async function createFolder() {
     const name = document.getElementById('folderNameInput').value.trim();
     
     if (!name) {
-        showError('请输入文件夹名称');
+        showError(t('enter_folder_name'));
         return;
     }
     
@@ -452,14 +499,14 @@ async function createFolder() {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('文件夹创建成功');
+            showSuccess(t('folder_create_success'));
             closeNewFolderModal();
             loadLibrary(currentPath);
         } else {
-            showError(data.error || '创建失败');
+            showError(data.error || t('create_fail'));
         }
     } catch (error) {
-        showError('创建失败: ' + error.message);
+        showError(t('create_fail') + ': ' + error.message);
     }
 }
 
@@ -511,7 +558,7 @@ async function contextMenuAction(action) {
             break;
             
         case 'delete':
-            if (confirm(`确定要删除 "${path.split('/').pop()}" 吗？`)) {
+            if (confirm(t('delete_confirm', {name: path.split('/').pop()}))) {
                 await deleteItem(path);
             }
             break;
@@ -527,7 +574,7 @@ async function openMoveModal(sourcePath) {
     
     // 加载文件夹列表
     const folderList = document.getElementById('folderList');
-    folderList.innerHTML = '<div class="loading">加载中...</div>';
+    folderList.innerHTML = '<div class="loading">' + t('loading') + '</div>';
     
     try {
         const response = await fetch('/api/library/folders');
@@ -536,10 +583,10 @@ async function openMoveModal(sourcePath) {
         if (data.success) {
             displayFolderList(data.folders, sourcePath);
         } else {
-            folderList.innerHTML = '<div class="empty-state">加载文件夹列表失败</div>';
+            folderList.innerHTML = '<div class="empty-state">' + t('load_folder_fail') + '</div>';
         }
     } catch (error) {
-        folderList.innerHTML = '<div class="empty-state">加载失败: ' + error.message + '</div>';
+        folderList.innerHTML = '<div class="empty-state">' + t('load_fail') + error.message + '</div>';
     }
     
     moveModal.classList.add('show');
@@ -550,7 +597,7 @@ function displayFolderList(folders, sourcePath) {
     const folderList = document.getElementById('folderList');
     
     if (folders.length === 0) {
-        folderList.innerHTML = '<div class="empty-state">没有可用的文件夹</div>';
+        folderList.innerHTML = '<div class="empty-state">' + t('no_move_target') + '</div>';
         return;
     }
     
@@ -574,7 +621,7 @@ function displayFolderList(folders, sourcePath) {
     });
     
     if (validFolders.length === 0) {
-        folderList.innerHTML = '<div class="empty-state">没有可移动的目标文件夹</div>';
+        folderList.innerHTML = '<div class="empty-state">' + t('no_move_target') + '</div>';
         return;
     }
     
@@ -616,7 +663,7 @@ async function selectTargetFolder(targetPath, targetName) {
     
     // 确认移动
     const itemName = sourcePath.split('/').pop();
-    if (confirm(`确定要将 "${itemName}" 移动到 "${targetName}" 吗？`)) {
+    if (confirm(t('move_confirm', {item: itemName, target: targetName}))) {
         closeMoveModal();
         await moveItem(sourcePath, targetPath);
     }
@@ -644,13 +691,13 @@ async function moveItem(source, target) {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('移动成功');
+            showSuccess(t('move_success'));
             loadLibrary(currentPath);
     } else {
-            showError(data.error || '移动失败');
+            showError(data.error || t('move_fail'));
         }
     } catch (error) {
-        showError('移动失败: ' + error.message);
+        showError(t('move_fail') + ': ' + error.message);
     }
 }
 
@@ -668,7 +715,7 @@ async function deleteItem(path) {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('删除成功');
+            showSuccess(t('delete_success'));
             
             // 如果删除的是当前选中的文件，清空预览
             if (selectedFile === path) {
@@ -676,21 +723,21 @@ async function deleteItem(path) {
                 currentMarkdownSource = '';
                 previewContent.innerHTML = `
                     <div class="welcome-message">
-                        <h3>文件已删除</h3>
-                        <p>请选择其他文件预览</p>
+                        <h3>${t('file_deleted')}</h3>
+                        <p>${t('select_other_file')}</p>
                     </div>
                 `;
-                previewTitle.textContent = '选择文件以预览';
+                previewTitle.textContent = t('select_file_preview');
                 currentFilePath.textContent = '';
                 viewSourceBtn.disabled = true;
             }
             
             loadLibrary(currentPath);
         } else {
-            showError(data.error || '删除失败');
+            showError(data.error || t('delete_fail'));
         }
     } catch (error) {
-        showError('删除失败: ' + error.message);
+        showError(t('delete_fail') + ': ' + error.message);
     }
 }
 
@@ -742,7 +789,7 @@ async function confirmRename() {
     
     // 验证新名称
     if (!newNameInput) {
-        errorElement.textContent = '名称不能为空';
+        errorElement.textContent = t('name_empty');
         errorElement.style.display = 'block';
         return;
     }
@@ -750,7 +797,7 @@ async function confirmRename() {
     // 检查是否包含非法字符
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(newNameInput)) {
-        errorElement.textContent = '名称包含非法字符: < > : " / \\ | ? *';
+        errorElement.textContent = t('invalid_chars');
         errorElement.style.display = 'block';
         return;
     }
@@ -773,7 +820,7 @@ async function confirmRename() {
     
     // 检查名称是否改变
     if (newName === oldName) {
-        errorElement.textContent = '新名称与原名称相同';
+        errorElement.textContent = t('name_same');
         errorElement.style.display = 'block';
         return;
     }
@@ -793,7 +840,7 @@ async function confirmRename() {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('重命名成功');
+            showSuccess(t('rename_success'));
             closeRenameModal();
             
             // 如果重命名的是当前选中的文件，更新选中状态
@@ -805,11 +852,11 @@ async function confirmRename() {
             // 刷新文件列表
             loadLibrary(currentPath);
         } else {
-            errorElement.textContent = data.error || '重命名失败';
+            errorElement.textContent = data.error || t('rename_fail');
             errorElement.style.display = 'block';
         }
     } catch (error) {
-        errorElement.textContent = '重命名失败: ' + error.message;
+        errorElement.textContent = t('rename_fail') + ': ' + error.message;
         errorElement.style.display = 'block';
     }
 }
@@ -861,7 +908,7 @@ async function previewContextMenuAction(action) {
             // 复制选中的文本（无提示）
             const success = await copyToClipboard(selectedText);
             if (!success) {
-                showError('复制失败');
+                showError(t('copy_fail'));
             }
             break;
             
@@ -874,7 +921,7 @@ async function previewContextMenuAction(action) {
         case 'findInSource':
             // 在源代码中找到
             if (!currentMarkdownSource) {
-                showError('没有可用的源代码');
+                showError(t('no_source'));
                 return;
             }
             
@@ -902,7 +949,7 @@ function highlightTextInSource(searchText) {
     const index = sourceText.indexOf(searchText);
     
     if (index === -1) {
-        showError('在源代码中未找到该文本');
+        showError(t('source_not_found'));
         return;
     }
     
@@ -954,7 +1001,7 @@ function editSourceCode() {
     // 切换按钮
     document.getElementById('sourceViewActions').style.display = 'none';
     document.getElementById('sourceEditActions').style.display = 'flex';
-    document.getElementById('sourceModalTitle').textContent = '编辑源代码';
+    document.getElementById('sourceModalTitle').textContent = t('edit_source');
     
     // 隐藏关闭按钮
     document.body.classList.add('editing-source');
@@ -967,7 +1014,7 @@ function editSourceCode() {
 function cancelEditSourceCode() {
     // 如果有未保存的改动，弹窗提醒
     if (hasUnsavedChanges) {
-        if (!confirm('您有未保存的改动，确定要退出编辑模式吗？\n改动将不会被保存。')) {
+        if (!confirm(t('unsaved_exit'))) {
             return; // 用户取消退出
         }
     }
@@ -985,7 +1032,7 @@ function cancelEditSourceCode() {
     // 切换按钮
     document.getElementById('sourceViewActions').style.display = 'flex';
     document.getElementById('sourceEditActions').style.display = 'none';
-    document.getElementById('sourceModalTitle').textContent = '源代码';
+    document.getElementById('sourceModalTitle').textContent = t('source_code');
     
     // 显示关闭按钮
     document.body.classList.remove('editing-source');
@@ -994,7 +1041,7 @@ function cancelEditSourceCode() {
 // 保存源代码
 async function saveSourceCode() {
     if (!selectedFile) {
-        showError('没有选中的文件');
+        showError(t('no_source'));
         return;
     }
     
@@ -1016,7 +1063,7 @@ async function saveSourceCode() {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('保存成功');
+            showSuccess(t('save_success'));
             currentMarkdownSource = newContent;
             hasUnsavedChanges = false; // 重置未保存标志
             
@@ -1031,16 +1078,16 @@ async function saveSourceCode() {
             document.getElementById('sourceEditor').oninput = null;
             document.getElementById('sourceViewActions').style.display = 'flex';
             document.getElementById('sourceEditActions').style.display = 'none';
-            document.getElementById('sourceModalTitle').textContent = '源代码';
+            document.getElementById('sourceModalTitle').textContent = t('source_code');
             document.body.classList.remove('editing-source');
             
             // 刷新预览
             previewFile(selectedFile);
         } else {
-            showError(data.error || '保存失败');
+            showError(data.error || t('save_fail'));
         }
     } catch (error) {
-        showError('保存失败: ' + error.message);
+        showError(t('save_fail') + ': ' + error.message);
     }
 }
 
@@ -1049,7 +1096,7 @@ function closeSourceModal() {
     if (isEditingSource) {
         // 如果正在编辑且有未保存的改动，提醒用户
         if (hasUnsavedChanges) {
-            if (!confirm('您有未保存的改动，确定要关闭吗？\n改动将不会被保存。')) {
+            if (!confirm(t('unsaved_close'))) {
                 return; // 用户取消关闭
             }
         }
@@ -1061,7 +1108,7 @@ function closeSourceModal() {
         document.getElementById('sourceEditor').oninput = null;
         document.getElementById('sourceViewActions').style.display = 'flex';
         document.getElementById('sourceEditActions').style.display = 'none';
-        document.getElementById('sourceModalTitle').textContent = '源代码';
+        document.getElementById('sourceModalTitle').textContent = t('source_code');
         document.body.classList.remove('editing-source');
     }
     sourceModal.classList.remove('show');
@@ -1139,8 +1186,8 @@ function handleSearch(event) {
             <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" style="opacity: 0.3; margin-bottom: 16px;">
                 <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
             </svg>
-            <p style="color: var(--text-secondary); font-size: 15px;">无搜索结果</p>
-            <p style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">试试其他关键词</p>
+            <p style="color: var(--text-secondary); font-size: 15px;">${t('no_search_result')}</p>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-top: 8px;">${t('no_search_hint')}</p>
         `;
         fileList.appendChild(noResultDiv);
     }
@@ -1188,33 +1235,44 @@ function loadSidebarState() {
     }
 }
 
-// ===== 主题切换功能 =====
+// ===== 设置弹窗功能 =====
 
-// 切换主题
-function toggleTheme() {
-    const body = document.body;
-    const isDark = body.classList.toggle('dark-mode');
-    
-    // 切换图标：白天模式显示月亮，夜间模式显示太阳
-    document.getElementById('sunIcon').style.display = isDark ? 'block' : 'none';
-    document.getElementById('moonIcon').style.display = isDark ? 'none' : 'block';
-    
-    // 保存主题设置
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+function openSettingsModal() {
+    const langSelect = document.getElementById('settingsLanguageSelect');
+    langSelect.value = localStorage.getItem('appLanguage') || 'zh-CN';
+    updateThemeUI();
+    settingsModal.classList.add('show');
 }
 
-// 加载主题
+function closeSettingsModal() {
+    settingsModal.classList.remove('show');
+}
+
+function setTheme(theme) {
+    document.body.classList.remove('dark-mode', 'blue-mode', 'pink-mode');
+    if (theme === 'dark') document.body.classList.add('dark-mode');
+    else if (theme === 'blue') document.body.classList.add('blue-mode');
+    else if (theme === 'pink') document.body.classList.add('pink-mode');
+    localStorage.setItem('theme', theme);
+    updateThemeUI();
+}
+
+function updateThemeUI() {
+    const current = localStorage.getItem('theme') || 'light';
+    document.querySelectorAll('.theme-option').forEach(opt => {
+        opt.classList.toggle('active', opt.dataset.theme === current);
+    });
+}
+
+function setLanguage(lang) {
+    localStorage.setItem('appLanguage', lang);
+    applyLanguage();
+}
+
 function loadTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark-mode');
-        document.getElementById('sunIcon').style.display = 'block';
-        document.getElementById('moonIcon').style.display = 'none';
-    } else {
-        // 白天模式：显示月亮图标
-        document.getElementById('sunIcon').style.display = 'none';
-        document.getElementById('moonIcon').style.display = 'block';
-    }
+    const saved = localStorage.getItem('theme') || 'light';
+    setTheme(saved);
+    applyLanguage();
 }
 
 // ===== 新建选择功能 =====
@@ -1261,14 +1319,14 @@ async function createFile() {
     const extension = document.getElementById('fileExtensionSelect').value;
     
     if (!nameInput) {
-        showError('请输入文件名');
+        showError(t('enter_file_name'));
         return;
     }
     
     // 检查文件名中是否包含非法字符
     const invalidChars = /[<>:"/\\|?*]/;
     if (invalidChars.test(nameInput)) {
-        showError('文件名包含非法字符: < > : " / \\ | ? *');
+        showError(t('invalid_chars'));
         return;
     }
     
@@ -1300,14 +1358,14 @@ async function createFile() {
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('文件创建成功');
+            showSuccess(t('file_create_success'));
             closeNewFileModal();
             loadLibrary(currentPath);
         } else {
-            showError(data.error || '创建失败');
+            showError(data.error || t('create_fail'));
         }
     } catch (error) {
-        showError('创建失败: ' + error.message);
+        showError(t('create_fail') + ': ' + error.message);
     }
 }
 
@@ -1331,12 +1389,13 @@ function formatDate(isoString) {
     const now = new Date();
     const diff = now - date;
     
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
-    if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
-    if (diff < 604800000) return Math.floor(diff / 86400000) + ' 天前';
+    if (diff < 60000) return t('just_now');
+    if (diff < 3600000) return t('minutes_ago', {n: Math.floor(diff / 60000)});
+    if (diff < 86400000) return t('hours_ago', {n: Math.floor(diff / 3600000)});
+    if (diff < 604800000) return t('days_ago', {n: Math.floor(diff / 86400000)});
     
-    return date.toLocaleDateString('zh-CN');
+    const lang = localStorage.getItem('appLanguage') || 'zh-CN';
+    return date.toLocaleDateString(lang);
 }
 
 function showSuccess(message) {
@@ -1345,12 +1404,6 @@ function showSuccess(message) {
 
 function showError(message) {
     alert('❌ ' + message);
-    previewContent.innerHTML = `
-        <div class="welcome-message">
-            <h3>❌ 错误</h3>
-            <p>${message}</p>
-        </div>
-    `;
 }
 
 // ===== 查看源代码功能 =====
@@ -1358,7 +1411,7 @@ function showError(message) {
 // 打开源代码模态框
 function openSourceModal() {
     if (!currentMarkdownSource) {
-        showError('没有可用的源代码');
+        showError(t('no_source'));
             return;
         }
 
@@ -1371,9 +1424,9 @@ function openSourceModal() {
 async function copySourceCode() {
     const success = await copyToClipboard(currentMarkdownSource);
     if (success) {
-        showSuccess('源代码已复制到剪贴板');
+        showSuccess(t('copy_success'));
     } else {
-        showError('复制失败');
+        showError(t('copy_fail'));
     }
 }
 
@@ -1760,5 +1813,40 @@ async function exportMermaidAsImage(container, index) {
     } catch (err) {
         console.error('导出图片失败:', err);
         alert('导出失败: ' + err.message);
+    }
+}
+
+// ===== 文件实时监控 =====
+let _lastDirMtime = 0;
+let _lastFileMtime = 0;
+let _watcherTimer = null;
+
+function startFileWatcher() {
+    if (_watcherTimer) return;
+    _watcherTimer = setInterval(checkForUpdates, 3000);
+    checkForUpdates();
+}
+
+async function checkForUpdates() {
+    try {
+        const params = new URLSearchParams();
+        params.set('path', currentPath);
+        if (selectedFile) params.set('file', selectedFile);
+
+        const resp = await fetch('/api/library/check-updates?' + params);
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        if (_lastDirMtime && data.dir_mtime > _lastDirMtime) {
+            loadLibrary(currentPath, true);
+        }
+        _lastDirMtime = data.dir_mtime;
+
+        if (selectedFile && _lastFileMtime && data.file_mtime > _lastFileMtime) {
+            previewFile(selectedFile, true);
+        }
+        _lastFileMtime = data.file_mtime;
+    } catch (e) {
+        // ignore
     }
 }
