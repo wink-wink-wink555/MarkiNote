@@ -6,7 +6,7 @@
 
 <div align="center">
 
-![MarkiNote](https://img.shields.io/badge/MarkiNote-✨_AI_Agent_Markdown-ff69b4?style=for-the-badge)
+![MarkiNote](https://img.shields.io/badge/MarkiNote-✨_AI_Agent_Powered-ff69b4?style=for-the-badge)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0.0-green?style=for-the-badge&logo=flask)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
