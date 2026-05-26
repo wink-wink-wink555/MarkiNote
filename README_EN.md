@@ -39,6 +39,18 @@ The AI Agent understands your intent and autonomously invokes 11 different tools
 
 ---
 
+## 🔗 Project Integration: FinNote Intelligent Financial Document System
+
+MarkiNote has been integrated with [FinanceMCP](https://github.com/guangxiangdebizi/FinanceMCP) to form **FinNote**, an AI Agent-driven intelligent document system for financial analysis scenarios. FinNote participated in the Shanghai Collegiate Computer Application Ability Competition and won the provincial second prize. The online deployment is available at: [https://finvestai.top/](https://finvestai.top/).
+
+In the FinNote architecture, FinanceMCP serves as the financial data MCP server. Built with Node.js, Express, and MCP SDK, it encapsulates 100+ financial data interfaces into 18 standardized MCP tools, providing large language models with access to stocks, funds, bonds, macroeconomic indicators, financial news, technical indicators, and other financial data sources.
+
+MarkiNote acts as the AI Agent-powered intelligent document layer. It turns AI-generated financial analysis results into manageable, traceable, and reusable document assets. Through HTTP communication with FinanceMCP, the system forms an integrated workflow: natural language query → MCP tool invocation → financial data retrieval → AI analysis → document preservation and management.
+
+As a result, MarkiNote can be used not only as a general Markdown document management and AI Agent file-operation system, but also as the frontend, document management, and knowledge preservation layer of FinNote for financial research and analysis.
+
+---
+
 ## 🤖 AI Agent Capabilities
 
 This is MarkiNote's core highlight. The AI assistant isn't a simple Q&A bot — it's a **real Agent with tool-calling capabilities**:
