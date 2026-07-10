@@ -687,10 +687,37 @@ def _summarize_with_subagent(content, url, api_key, provider_id, model_id):
         return f'URL: {url}\n内容长度: {len(content)} 字符 (已截断)\n\n---\n{content[:8000]}\n\n[... 摘要生成异常: {str(e)} ...]'
 
 
+def _web_search_tavily(query):
+    """通过 Tavily API 搜索（需设置 TAVILY_API_KEY 环境变量）"""
+    api_key = os.environ.get('TAVILY_API_KEY')
+    if not api_key:
+        return None
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=api_key)
+        response = client.search(query=query, max_results=5, search_depth="basic")
+        results = response.get('results', [])
+        if not results:
+            return None
+        lines = [f'搜索关键词: {query}\n']
+        for i, r in enumerate(results, 1):
+            title = r.get('title', '')
+            url = r.get('url', '')
+            content = r.get('content', '')
+            lines.append(f'{i}. [{title}]({url})\n   {content}\n')
+        return '\n'.join(lines)
+    except Exception:
+        return None
+
+
 def _web_search(args, lib_dir, bm, gid, **extra):
     query = args.get('query', '')
     if not query:
         return '搜索查询不能为空', None
+
+    result = _web_search_tavily(query)
+    if result:
+        return result, None
 
     proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY') or os.environ.get('ALL_PROXY')
 
