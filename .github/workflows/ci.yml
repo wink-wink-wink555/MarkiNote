@@ -27,14 +27,20 @@ jobs:
     env:
       PYTHONPATH: .:apps/api/src
       MARKINOTE_ENVIRONMENT: test
-      MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/markinote/library
-      MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/markinote/conversations
-      MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/markinote/backups
-      MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/markinote/trash
-      MARKINOTE_DATABASE_URL: sqlite:///${{ runner.temp }}/markinote/state.db
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Configure runtime paths
+        shell: bash
+        run: |
+          {
+            echo "MARKINOTE_LIBRARY_FOLDER=$RUNNER_TEMP/markinote/library"
+            echo "MARKINOTE_CONVERSATIONS_FOLDER=$RUNNER_TEMP/markinote/conversations"
+            echo "MARKINOTE_BACKUPS_FOLDER=$RUNNER_TEMP/markinote/backups"
+            echo "MARKINOTE_TRASH_FOLDER=$RUNNER_TEMP/markinote/trash"
+            echo "MARKINOTE_DATABASE_URL=sqlite:///$RUNNER_TEMP/markinote/state.db"
+          } >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -105,14 +111,21 @@ jobs:
     env:
       PYTHONPATH: .;apps/api/src
       MARKINOTE_ENVIRONMENT: test
-      MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/markinote/library
-      MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/markinote/conversations
-      MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/markinote/backups
-      MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/markinote/trash
-      MARKINOTE_DATABASE_URL: sqlite:///${{ runner.temp }}/markinote/state.db
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Configure runtime paths
+        shell: pwsh
+        run: |
+          $runtimeRoot = (Join-Path $env:RUNNER_TEMP "markinote").Replace('\', '/')
+          @(
+            "MARKINOTE_LIBRARY_FOLDER=$runtimeRoot/library"
+            "MARKINOTE_CONVERSATIONS_FOLDER=$runtimeRoot/conversations"
+            "MARKINOTE_BACKUPS_FOLDER=$runtimeRoot/backups"
+            "MARKINOTE_TRASH_FOLDER=$runtimeRoot/trash"
+            "MARKINOTE_DATABASE_URL=sqlite:///$runtimeRoot/state.db"
+          ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -417,10 +430,6 @@ jobs:
     env:
       PYTHONPATH: .:apps/api/src
       MARKINOTE_ENVIRONMENT: test
-      MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/postgres/library
-      MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/postgres/conversations
-      MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/postgres/backups
-      MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/postgres/trash
       MARKINOTE_CONVERSATION_BACKEND: database
       MARKINOTE_DATABASE_URL: postgresql+psycopg://markinote:postgres-ci-integration-password@127.0.0.1:5432/markinote
       MARKINOTE_AUTO_CREATE_DATABASE: "false"
@@ -429,6 +438,16 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Configure runtime paths
+        shell: bash
+        run: |
+          {
+            echo "MARKINOTE_LIBRARY_FOLDER=$RUNNER_TEMP/postgres/library"
+            echo "MARKINOTE_CONVERSATIONS_FOLDER=$RUNNER_TEMP/postgres/conversations"
+            echo "MARKINOTE_BACKUPS_FOLDER=$RUNNER_TEMP/postgres/backups"
+            echo "MARKINOTE_TRASH_FOLDER=$RUNNER_TEMP/postgres/trash"
+          } >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
