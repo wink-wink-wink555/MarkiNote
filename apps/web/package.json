@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
-    "@codemirror/lang-markdown": "^6.3.3",
+    "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
     "@codemirror/search": "^6.5.10",
     "@codemirror/state": "^6.5.2",
