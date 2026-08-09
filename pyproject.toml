@@ -38,7 +38,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=9.0.3,<10",
-  "pytest-cov>=6,<7",
+  "pytest-cov>=6,<8",
   "pytest-asyncio>=1,<2",
   # Starlette TestClient prefers the next-generation client and warns when
   # falling back to the production httpx dependency.
