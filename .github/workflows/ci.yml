@@ -684,7 +684,7 @@ jobs:
           retention-days: 14
 
       - name: Scan API image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: markinote-api:ci
           format: table
@@ -693,7 +693,7 @@ jobs:
           exit-code: "1"
 
       - name: Scan gateway image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: markinote-gateway:ci
           format: table
@@ -786,7 +786,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Filesystem and IaC scan
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
