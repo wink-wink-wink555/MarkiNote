@@ -134,7 +134,7 @@ jobs:
 
       - name: Build, attest, and push quarantine manifest
         id: publish-image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
