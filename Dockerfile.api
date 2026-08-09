@@ -1,4 +1,4 @@
-ARG PYTHON_BASE_IMAGE=python:3.12.11-slim-bookworm
+ARG PYTHON_BASE_IMAGE=python:3.12.13-slim-bookworm
 
 FROM ${PYTHON_BASE_IMAGE} AS python-builder
 

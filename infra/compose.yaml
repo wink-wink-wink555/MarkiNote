@@ -23,7 +23,7 @@ services:
       context: ..
       dockerfile: Dockerfile.api
       args:
-        PYTHON_BASE_IMAGE: ${MARKINOTE_PYTHON_BASE_IMAGE:-python:3.12.11-slim-bookworm}
+        PYTHON_BASE_IMAGE: ${MARKINOTE_PYTHON_BASE_IMAGE:-python:3.12.13-slim-bookworm}
         VERSION: ${MARKINOTE_VERSION:-local}
         VCS_REF: ${MARKINOTE_VCS_REF:-local}
         BUILD_DATE: ${MARKINOTE_BUILD_DATE:-local}
