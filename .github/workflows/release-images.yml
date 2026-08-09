@@ -1,0 +1,507 @@
+name: Release container images
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  # Registry immutability checks are compare-before-publish operations. All
+  # releases for this repository must therefore share one serialization lock.
+  group: release-images-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release-ref:
+    name: Validate immutable release ref
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Check out full release ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the exact project version tag
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then
+            echo "Release publication must run from a protected tag." >&2
+            exit 1
+          fi
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must be an exact stable vMAJOR.MINOR.PATCH without leading zeroes." >&2
+            exit 1
+          fi
+          project_version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          if [[ "$GITHUB_REF_NAME" != "v$project_version" ]]; then
+            echo "Release tag must equal v plus pyproject.toml project.version." >&2
+            exit 1
+          fi
+          git rev-parse --verify "refs/tags/$GITHUB_REF_NAME^{commit}" > /tmp/tag-commit
+          test "$(cat /tmp/tag-commit)" = "$GITHUB_SHA"
+          test -n "$DEFAULT_BRANCH"
+          git fetch --no-tags origin \
+            "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! git merge-base --is-ancestor \
+            "$GITHUB_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "Release commit must be reachable from the repository default branch." >&2
+            exit 1
+          fi
+
+  validated-ci:
+    name: Reuse full CI, integration, image, and security gates
+    needs: release-ref
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  validated-codeql:
+    name: Reuse CodeQL Python and JavaScript analysis
+    needs: release-ref
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/codeql.yml
+
+  publish:
+    name: Publish ${{ matrix.image }}
+    needs: [release-ref, validated-ci, validated-codeql]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: Dockerfile.api
+          - image: gateway
+            dockerfile: Dockerfile.web
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize GHCR image repository
+        id: image_repository
+        shell: bash
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          IMAGE_NAME: ${{ matrix.image }}
+        run: |
+          repository="${SOURCE_REPOSITORY,,}"
+          if [[ ! "$repository" =~ ^[a-z0-9._-]+/[a-z0-9._-]+$ ]]; then
+            echo "GitHub repository cannot be normalized to a valid GHCR path." >&2
+            exit 1
+          fi
+          printf 'value=ghcr.io/%s-%s\n' "$repository" "$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image_repository.outputs.value }}
+          tags: |
+            type=ref,event=tag
+            type=sha,prefix=sha-,format=long
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build, attest, and push quarantine manifest
+        id: publish-image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          pull: true
+          push: true
+          tags: ${{ steps.image_repository.outputs.value }}:quarantine-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Record immutable manifest identity
+        shell: bash
+        env:
+          PUBLISHED_DIGEST: ${{ steps.publish-image.outputs.digest }}
+          IMAGE_REPOSITORY: ${{ steps.image_repository.outputs.value }}
+          QUARANTINE_REFERENCE: ${{ steps.image_repository.outputs.value }}:quarantine-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          if [[ ! "$PUBLISHED_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Build did not return a valid manifest digest." >&2
+            exit 1
+          fi
+          mkdir -p .artifacts/release
+          printf 'image=%s\nsource_sha=%s\nrelease_tag=%s\nquarantine_reference=%s\nmanifest_digest=%s\npublication_stage=quarantine_pending_scan\n' \
+            "$IMAGE_REPOSITORY" "$GITHUB_SHA" "$GITHUB_REF_NAME" \
+            "$QUARANTINE_REFERENCE" "$PUBLISHED_DIGEST" \
+            > ".artifacts/release/${{ matrix.image }}-manifest.txt"
+
+      - name: Scan final published linux/amd64 manifest by digest
+        uses: aquasecurity/trivy-action@0.33.1
+        env:
+          TRIVY_PLATFORM: linux/amd64
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image-ref: ${{ steps.image_repository.outputs.value }}@${{ steps.publish-image.outputs.digest }}
+          format: json
+          output: .artifacts/release/${{ matrix.image }}-trivy-linux-amd64.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan final published linux/arm64 manifest by digest
+        if: ${{ !cancelled() }}
+        uses: aquasecurity/trivy-action@0.33.1
+        env:
+          TRIVY_PLATFORM: linux/arm64
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image-ref: ${{ steps.image_repository.outputs.value }}@${{ steps.publish-image.outputs.digest }}
+          format: json
+          output: .artifacts/release/${{ matrix.image }}-trivy-linux-arm64.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Bind final scan evidence to manifest digest
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          PUBLISHED_DIGEST: ${{ steps.publish-image.outputs.digest }}
+          IMAGE_REPOSITORY: ${{ steps.image_repository.outputs.value }}
+          IMAGE_NAME: ${{ matrix.image }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          artifact_dir = Path(".artifacts/release")
+          image_name = os.environ["IMAGE_NAME"]
+          platforms = []
+          for platform, suffix in (
+              ("linux/amd64", "linux-amd64"),
+              ("linux/arm64", "linux-arm64"),
+          ):
+              report = artifact_dir / f"{image_name}-trivy-{suffix}.json"
+              if not report.is_file() or report.stat().st_size == 0:
+                  raise SystemExit(f"missing final Trivy report for {platform}")
+              report_bytes = report.read_bytes()
+              json.loads(report_bytes)
+              platforms.append(
+                  {
+                      "platform": platform,
+                      "report": report.name,
+                      "reportSha256": hashlib.sha256(report_bytes).hexdigest(),
+                  }
+              )
+          evidence = {
+              "schemaVersion": 1,
+              "image": os.environ["IMAGE_REPOSITORY"],
+              "manifestDigest": os.environ["PUBLISHED_DIGEST"],
+              "publicationStage": "quarantine",
+              "formalTagsCreated": False,
+              "policy": {
+                  "scanner": "Trivy",
+                  "severity": ["HIGH", "CRITICAL"],
+                  "ignoreUnfixed": True,
+                  "exitCodeOnMatch": 1,
+              },
+              "platforms": platforms,
+          }
+          (artifact_dir / f"{image_name}-final-scan-evidence.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload quarantine and final-scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.image }}-quarantine
+          path: |
+            .artifacts/release/${{ matrix.image }}-manifest.txt
+            .artifacts/release/${{ matrix.image }}-trivy-linux-amd64.json
+            .artifacts/release/${{ matrix.image }}-trivy-linux-arm64.json
+            .artifacts/release/${{ matrix.image }}-final-scan-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+
+  promote-release-pair:
+    name: Promote the fully scanned API/gateway release pair
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize GHCR repository prefix
+        id: repository_prefix
+        shell: bash
+        env:
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: |
+          repository="${SOURCE_REPOSITORY,,}"
+          if [[ ! "$repository" =~ ^[a-z0-9._-]+/[a-z0-9._-]+$ ]]; then
+            echo "GitHub repository cannot be normalized to a valid GHCR path." >&2
+            exit 1
+          fi
+          printf 'value=ghcr.io/%s\n' "$repository" >> "$GITHUB_OUTPUT"
+
+      - name: Download both quarantine scan artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*-quarantine
+          merge-multiple: true
+          path: .artifacts/release
+
+      - name: Validate the complete release pair and scan evidence
+        shell: bash
+        env:
+          RELEASE_REPOSITORY: ${{ steps.repository_prefix.outputs.value }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          artifact_dir = Path(".artifacts/release")
+          source_sha = os.environ["GITHUB_SHA"]
+          release_tag = os.environ["GITHUB_REF_NAME"]
+          repository_prefix = os.environ["RELEASE_REPOSITORY"]
+          if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+              raise SystemExit("invalid release source SHA")
+          if not re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", release_tag):
+              raise SystemExit("invalid stable release tag")
+
+          release_images = []
+          for image_name in ("api", "gateway"):
+              image_repository = f"{repository_prefix}-{image_name}"
+              manifest_path = artifact_dir / f"{image_name}-manifest.txt"
+              lines = manifest_path.read_text(encoding="utf-8").splitlines()
+              manifest = {}
+              for line in lines:
+                  key, separator, value = line.partition("=")
+                  if not separator or not key or key in manifest:
+                      raise SystemExit(f"invalid manifest evidence for {image_name}")
+                  manifest[key] = value
+              digest = manifest.get("manifest_digest", "")
+              expected_manifest = {
+                  "image": image_repository,
+                  "source_sha": source_sha,
+                  "release_tag": release_tag,
+                  "quarantine_reference": (
+                      f"{image_repository}:quarantine-{os.environ['GITHUB_RUN_ID']}-"
+                      f"{os.environ['GITHUB_RUN_ATTEMPT']}"
+                  ),
+                  "manifest_digest": digest,
+                  "publication_stage": "quarantine_pending_scan",
+              }
+              if manifest != expected_manifest or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+                  raise SystemExit(f"manifest identity mismatch for {image_name}")
+
+              evidence_path = artifact_dir / f"{image_name}-final-scan-evidence.json"
+              evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+              if (
+                  evidence.get("schemaVersion") != 1
+                  or evidence.get("image") != image_repository
+                  or evidence.get("manifestDigest") != digest
+                  or evidence.get("publicationStage") != "quarantine"
+                  or evidence.get("formalTagsCreated") is not False
+              ):
+                  raise SystemExit(f"scan evidence identity mismatch for {image_name}")
+              platforms = evidence.get("platforms")
+              if not isinstance(platforms, list) or {
+                  entry.get("platform") for entry in platforms if isinstance(entry, dict)
+              } != {"linux/amd64", "linux/arm64"}:
+                  raise SystemExit(f"incomplete platform scan set for {image_name}")
+              for entry in platforms:
+                  report_name = entry.get("report", "")
+                  report_path = artifact_dir / report_name
+                  report_bytes = report_path.read_bytes()
+                  json.loads(report_bytes)
+                  if hashlib.sha256(report_bytes).hexdigest() != entry.get("reportSha256"):
+                      raise SystemExit(f"scan report hash mismatch for {image_name}")
+              release_images.append(
+                  {
+                      "name": image_name,
+                      "repository": image_repository,
+                      "digest": digest,
+                      "formalTags": [
+                          f"{image_repository}:{release_tag}",
+                          f"{image_repository}:sha-{source_sha}",
+                      ],
+                  }
+              )
+
+          (artifact_dir / "release-pair-promotion-plan.json").write_text(
+              json.dumps(
+                  {
+                      "schemaVersion": 1,
+                      "sourceSha": source_sha,
+                      "releaseTag": release_tag,
+                      "images": release_images,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Fail closed unless every formal tag is absent
+        shell: bash
+        run: |
+          mapfile -t formal_tags < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          plan = json.loads(
+              Path(".artifacts/release/release-pair-promotion-plan.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          for image in plan["images"]:
+              for tag in image["formalTags"]:
+                  print(tag)
+          PY
+          )
+          test "${#formal_tags[@]}" -eq 4
+          for tag in "${formal_tags[@]}"; do
+            lookup_output="$(mktemp)"
+            if docker buildx imagetools inspect "$tag" >"$lookup_output" 2>&1; then
+              echo "Refusing to overwrite an existing immutable formal tag." >&2
+              rm -f "$lookup_output"
+              exit 1
+            fi
+            lookup_error="$(tr '[:upper:]' '[:lower:]' <"$lookup_output")"
+            rm -f "$lookup_output"
+            case "$lookup_error" in
+              *"manifest unknown"*|*"not found"*) ;;
+              *) echo "Formal-tag lookup failed without an authoritative not-found response." >&2; exit 1 ;;
+            esac
+          done
+          printf 'promotion_status=preflight_complete\n' > .artifacts/release/release-pair-promotion.log
+
+      - name: Promote both scanned digests to formal tags
+        shell: bash
+        run: |
+          mapfile -t release_images < <(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          plan = json.loads(
+              Path(".artifacts/release/release-pair-promotion-plan.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          for image in plan["images"]:
+              print("|".join((image["name"], image["repository"], image["digest"], *image["formalTags"])))
+          PY
+          )
+          test "${#release_images[@]}" -eq 2
+          for entry in "${release_images[@]}"; do
+            IFS='|' read -r image_name image_repository digest version_tag sha_tag <<< "$entry"
+            docker buildx imagetools create \
+              --tag "$version_tag" \
+              --tag "$sha_tag" \
+              "$image_repository@$digest"
+            for tag in "$version_tag" "$sha_tag"; do
+              inspection="$(docker buildx imagetools inspect "$tag")"
+              if ! grep --fixed-strings --quiet -- "Digest: $digest" <<< "$inspection"; then
+                echo "Promoted formal tag did not resolve to the scanned digest." >&2
+                exit 1
+              fi
+              printf 'image=%s formal_tag=%s digest=%s\n' \
+                "$image_name" "$tag" "$digest" \
+                >> .artifacts/release/release-pair-promotion.log
+            done
+          done
+          printf 'promotion_status=complete\n' >> .artifacts/release/release-pair-promotion.log
+
+      - name: Record completed pair-promotion evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          artifact_dir = Path(".artifacts/release")
+          plan = json.loads(
+              (artifact_dir / "release-pair-promotion-plan.json").read_text(encoding="utf-8")
+          )
+          plan["formalTagsCreated"] = True
+          plan["promotionPrerequisite"] = (
+              "api-and-gateway-both-platform-final-digest-scans-passed"
+          )
+          (artifact_dir / "release-pair-promotion-evidence.json").write_text(
+              json.dumps(plan, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload pair-promotion evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-pair-promotion
+          path: |
+            .artifacts/release/api-manifest.txt
+            .artifacts/release/gateway-manifest.txt
+            .artifacts/release/release-pair-promotion-plan.json
+            .artifacts/release/release-pair-promotion.log
+            .artifacts/release/release-pair-promotion-evidence.json
+          if-no-files-found: error
+          retention-days: 90

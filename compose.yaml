@@ -1,0 +1,4 @@
+name: markinote
+
+include:
+  - path: infra/compose.yaml

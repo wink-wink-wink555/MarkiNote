@@ -1,0 +1,17 @@
+{
+  "name": "markinote",
+  "private": true,
+  "scripts": {
+    "build:web": "npm --prefix apps/web run build",
+    "build": "npm run generate:api && npm run build:web",
+    "lint:python": "ruff check apps/api/src apps/api/scripts tests apps/api/tests infra",
+    "typecheck:python": "mypy apps/api/src/markinote_api",
+    "test:python": "uv run python -m pytest tests apps/api/tests -q",
+    "test:api": "uv run python -m pytest apps/api/tests -q",
+    "test:web": "npm --prefix apps/web run test",
+    "typecheck:api-client": "npm --prefix packages/api-client run typecheck",
+    "test": "npm run test:python && npm run test:web",
+    "openapi": "uv run python apps/api/scripts/export_openapi.py",
+    "generate:api": "npm run openapi && npm --prefix packages/api-client run generate"
+  }
+}

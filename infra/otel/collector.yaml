@@ -1,0 +1,71 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 384
+    spike_limit_mib: 96
+  resource:
+    attributes:
+      - key: deployment.environment
+        action: upsert
+        value: ${env:MARKINOTE_ENVIRONMENT}
+  # Drop common credential-bearing attributes before any exporter. Application
+  # instrumentation must also keep request/response bodies disabled by default.
+  attributes/redact:
+    actions:
+      - key: http.request.header.authorization
+        action: delete
+      - key: http.request.header.cookie
+        action: delete
+      - key: http.response.header.set-cookie
+        action: delete
+      - key: api_key
+        action: delete
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+
+exporters:
+  # Local/default profile deliberately avoids a vendor dependency. Replace the
+  # debug exporter with an authenticated OTLP exporter in managed production.
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: markinote_otel
+    send_timestamps: true
+
+service:
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888
+  extensions:
+    - health_check
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes/redact, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes/redact, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes/redact, batch]
+      exporters: [debug]

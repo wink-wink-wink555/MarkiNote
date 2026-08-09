@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability / 安全漏洞
+    url: https://github.com/wink-wink-wink555/MarkiNote/security/policy
+    about: Read the security policy and use private vulnerability reporting. / 请阅读安全策略并使用私密漏洞报告。

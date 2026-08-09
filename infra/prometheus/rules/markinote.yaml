@@ -1,0 +1,51 @@
+groups:
+  - name: markinote.availability
+    rules:
+      - alert: MarkiNoteApiUnavailable
+        expr: up{job="markinote-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: MarkiNote API is not scrapeable
+          description: Prometheus has been unable to scrape the API for more than two minutes.
+          runbook_url: https://github.com/wink-wink-wink555/MarkiNote#api-unavailable
+
+      - alert: MarkiNoteHighErrorRatio
+        expr: |
+          (
+            sum(rate(markinote_http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(markinote_http_requests_total[5m])), 0.001)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: MarkiNote 5xx ratio is above 5%
+          description: The rolling five-minute server error ratio has remained above 5% for ten minutes.
+          runbook_url: https://github.com/wink-wink-wink555/MarkiNote#elevated-5xx-rate
+
+      - alert: MarkiNoteHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(markinote_http_request_duration_seconds_bucket{route!="/api/v1/agent/chat"}[5m]))
+          ) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: MarkiNote non-streaming API p95 is above one second
+          description: Validate route-level latency before changing this initial threshold.
+          runbook_url: https://github.com/wink-wink-wink555/MarkiNote#latency-regression
+
+      - alert: MarkiNoteProcessRestarting
+        expr: changes(process_start_time_seconds{job="markinote-api"}[15m]) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: MarkiNote API is restarting repeatedly
+          description: The API process start timestamp changed more than twice in fifteen minutes.
+          runbook_url: https://github.com/wink-wink-wink555/MarkiNote#restart-loop

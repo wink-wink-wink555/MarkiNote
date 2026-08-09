@@ -1,0 +1,61 @@
+name: Cross-browser E2E
+
+on:
+  schedule:
+    - cron: "41 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  browser:
+    name: Playwright ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install exact web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Build the production web application
+        run: npm run build --prefix apps/web
+
+      - name: Install the selected browser and system dependencies
+        run: npx --prefix apps/web playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run the browser-equivalence suite
+        env:
+          CI: "true"
+        run: npm run e2e --prefix apps/web -- --project=${{ matrix.browser }}
+
+      - name: Upload browser diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-browser-${{ matrix.browser }}
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,803 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+  FORCE_COLOR: "1"
+
+jobs:
+  backend:
+    name: Backend quality and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .:apps/api/src
+      MARKINOTE_ENVIRONMENT: test
+      MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/markinote/library
+      MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/markinote/conversations
+      MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/markinote/backups
+      MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/markinote/trash
+      MARKINOTE_DATABASE_URL: sqlite:///${{ runner.temp }}/markinote/state.db
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install backend and quality tools
+        run: uv sync --frozen --all-extras
+
+      - name: Reject production dependency export drift
+        shell: bash
+        run: |
+          mkdir -p .artifacts
+          uv export --frozen --no-dev --extra postgres --extra otel \
+            --no-emit-project \
+            --output-file .artifacts/requirements.lock.txt
+          # uv records the output filename in its two-line generated header.
+          # Compare the resolved body so a renamed temporary file is harmless.
+          diff --unified \
+            <(tail -n +3 requirements.lock.txt) \
+            <(tail -n +3 .artifacts/requirements.lock.txt)
+
+      - name: Reject Python build-backend lock drift
+        shell: bash
+        run: |
+          uv export --frozen --only-group build --no-emit-project \
+            --output-file .artifacts/requirements.build.lock.txt
+          diff --unified \
+            <(tail -n +3 requirements.build.lock.txt) \
+            <(tail -n +3 .artifacts/requirements.build.lock.txt)
+
+      - name: Ruff
+        run: uv run --frozen ruff check .
+
+      - name: Type check the typed backend
+        run: uv run --frozen mypy apps/api/src/markinote_api
+
+      - name: Repository contract tests
+        run: uv run --frozen pytest tests -q
+
+      - name: Typed ASGI tests with 80% branch-aware coverage gate
+        run: >-
+          uv run --frozen pytest apps/api/tests -q
+          --cov=markinote_api --cov-config=pyproject.toml
+          --cov-report=term-missing
+          --cov-report=xml:coverage-api.xml
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: coverage-api.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  windows-compatibility:
+    name: Windows Python and web compatibility
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: .;apps/api/src
+      MARKINOTE_ENVIRONMENT: test
+      MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/markinote/library
+      MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/markinote/conversations
+      MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/markinote/backups
+      MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/markinote/trash
+      MARKINOTE_DATABASE_URL: sqlite:///${{ runner.temp }}/markinote/state.db
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen Python environment
+        run: uv sync --frozen --all-extras
+
+      - name: Run Python quality gates
+        run: |
+          uv run --frozen ruff check apps/api/src apps/api/scripts tests apps/api/tests infra/ci
+          uv run --frozen mypy apps/api/src/markinote_api
+          uv run --frozen pytest tests apps/api/tests -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            packages/api-client/package-lock.json
+
+      - name: Install and build typed web on Windows
+        run: |
+          npm ci --prefix packages/api-client
+          npm ci --prefix apps/web
+          npm run typecheck --prefix packages/api-client
+          npm run typecheck --prefix apps/web
+          npm run build --prefix apps/web
+
+  frontend:
+    name: Frontend quality and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install exact frontend dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Unit and component tests
+        run: npm run test:coverage
+
+      - name: Production build
+        run: npm run build
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: apps/web/coverage
+          if-no-files-found: ignore
+          retention-days: 14
+
+  contract:
+    name: OpenAPI and stream contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Node for generated client validation
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: packages/api-client/package-lock.json
+
+      - name: Install API
+        run: |
+          uv sync --frozen --all-extras
+          npm ci --prefix packages/api-client
+
+      - name: Validate and export deterministic OpenAPI
+        env:
+          MARKINOTE_ENVIRONMENT: test
+          MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/contract/library
+          MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/contract/conversations
+          MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/contract/backups
+          MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/contract/trash
+          MARKINOTE_DATABASE_URL: sqlite:///${{ runner.temp }}/contract/state.db
+        run: |
+          mkdir -p .artifacts
+          uv run --frozen python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from fastapi.testclient import TestClient
+          from markinote_api.application import app
+
+          schema = app.openapi()
+          assert str(schema.get("openapi", "")).startswith("3."), "OpenAPI 3.x is required"
+          assert schema.get("info", {}).get("version"), "API version is required"
+          assert "/health/live" in schema["paths"]
+          assert "/health/ready" in schema["paths"]
+
+          operation_ids = []
+          for path_item in schema["paths"].values():
+              for operation in path_item.values():
+                  if isinstance(operation, dict) and operation.get("operationId"):
+                      operation_ids.append(operation["operationId"])
+          assert len(operation_ids) == len(set(operation_ids)), "operationId values must be unique"
+
+          with TestClient(app) as client:
+              assert client.get("/health/live").status_code == 200
+              assert client.get("/health/ready").status_code == 200
+
+          Path(".artifacts/openapi.json").write_text(
+              json.dumps(schema, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Reject OpenAPI snapshot drift
+        shell: bash
+        run: |
+          test -f packages/api-client/openapi.json
+          jq --sort-keys . packages/api-client/openapi.json > /tmp/expected-openapi.json
+          jq --sort-keys . .artifacts/openapi.json > /tmp/actual-openapi.json
+          diff --unified /tmp/expected-openapi.json /tmp/actual-openapi.json
+
+      - name: Reject generated TypeScript client drift
+        run: |
+          uv run --frozen python apps/api/scripts/export_openapi.py
+          npm run generate --prefix packages/api-client
+          npm run typecheck --prefix packages/api-client
+          git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/generated.ts
+          test -z "$(git status --porcelain --untracked-files=all -- packages/api-client)"
+
+      - name: Contract-focused tests
+        shell: bash
+        run: |
+          mapfile -t contract_tests < <(find apps/api/tests -type f \( -iname '*contract*.py' -o -iname '*openapi*.py' -o -iname '*sse*.py' \) 2>/dev/null)
+          if (( ${#contract_tests[@]} )); then
+            uv run --frozen pytest "${contract_tests[@]}"
+          else
+            echo "::notice::No dedicated contract test files yet; OpenAPI semantic checks remain mandatory."
+          fi
+
+      - name: Upload API contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-contract
+          path: .artifacts/openapi.json
+          if-no-files-found: error
+          retention-days: 14
+
+  e2e:
+    name: React browser smoke
+    needs: [backend, frontend, contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install runtime and browser dependencies
+        run: |
+          uv sync --frozen --all-extras
+          npm ci --prefix apps/web
+          npx --prefix apps/web playwright install --with-deps chromium
+
+      - name: Download tested web build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+
+      - name: Start API
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/e2e/library" "$RUNNER_TEMP/e2e/conversations" "$RUNNER_TEMP/e2e/backups" "$RUNNER_TEMP/e2e/trash"
+          MARKINOTE_ENVIRONMENT=test \
+          MARKINOTE_LIBRARY_FOLDER="$RUNNER_TEMP/e2e/library" \
+          MARKINOTE_CONVERSATIONS_FOLDER="$RUNNER_TEMP/e2e/conversations" \
+          MARKINOTE_BACKUPS_FOLDER="$RUNNER_TEMP/e2e/backups" \
+          MARKINOTE_TRASH_FOLDER="$RUNNER_TEMP/e2e/trash" \
+          MARKINOTE_DATABASE_URL="sqlite:///$RUNNER_TEMP/e2e/state.db" \
+          MARKINOTE_SERVE_WEB_DIST=false \
+          uv run --frozen uvicorn markinote_api.application:app --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/markinote-api.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/markinote-api.pid"
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:8000/health/ready && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/markinote-api.log"
+          exit 1
+
+      - name: React application E2E
+        env:
+          CI: "true"
+          VITE_API_PROXY: http://127.0.0.1:8000
+        run: >-
+          npm run e2e --prefix apps/web --
+          --project=chromium --project=mobile-chrome
+
+      - name: Collect E2E diagnostics
+        if: always()
+        run: |
+          cp "$RUNNER_TEMP/markinote-api.log" apps/web/test-results/api.log 2>/dev/null || true
+          if [[ -f "$RUNNER_TEMP/markinote-api.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/markinote-api.pid")" 2>/dev/null || true
+          fi
+
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+  postgres-integration:
+    name: PostgreSQL migration and repository smoke
+    needs: [backend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.5-alpine
+        env:
+          POSTGRES_DB: markinote
+          POSTGRES_USER: markinote
+          POSTGRES_PASSWORD: postgres-ci-integration-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U markinote -d markinote"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHONPATH: .:apps/api/src
+      MARKINOTE_ENVIRONMENT: test
+      MARKINOTE_LIBRARY_FOLDER: ${{ runner.temp }}/postgres/library
+      MARKINOTE_CONVERSATIONS_FOLDER: ${{ runner.temp }}/postgres/conversations
+      MARKINOTE_BACKUPS_FOLDER: ${{ runner.temp }}/postgres/backups
+      MARKINOTE_TRASH_FOLDER: ${{ runner.temp }}/postgres/trash
+      MARKINOTE_CONVERSATION_BACKEND: database
+      MARKINOTE_DATABASE_URL: postgresql+psycopg://markinote:postgres-ci-integration-password@127.0.0.1:5432/markinote
+      MARKINOTE_AUTO_CREATE_DATABASE: "false"
+      MARKINOTE_SERVE_WEB_DIST: "false"
+      MARKINOTE_TRUSTED_HOSTS: '["testserver","127.0.0.1","localhost"]'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install backend with PostgreSQL adapter
+        run: uv sync --frozen --all-extras
+
+      - name: Apply and verify Alembic head
+        shell: bash
+        run: |
+          mkdir -p .artifacts
+          expected_revision="$(uv run --frozen python -c \
+            'from markinote_api.modules.conversations.repository import EXPECTED_SCHEMA_REVISION; print(EXPECTED_SCHEMA_REVISION)')"
+          uv run --frozen alembic upgrade head
+          uv run --frozen alembic current | tee .artifacts/alembic-current.txt
+          grep -Fq "$expected_revision" .artifacts/alembic-current.txt
+          grep -q '(head)' .artifacts/alembic-current.txt
+          printf 'expected_revision=%s\n' "$expected_revision"
+
+      - name: Exercise PostgreSQL repository through API
+        shell: bash
+        run: |
+          uv run --frozen python infra/ci/postgres-repository-smoke.py \
+            | tee .artifacts/postgres-smoke.json
+
+      - name: Upload migration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-migration-evidence
+          path: |
+            .artifacts/alembic-current.txt
+            .artifacts/postgres-smoke.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  image:
+    name: Container build, smoke, and scan
+    needs: [backend, frontend, contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      MARKINOTE_ENVIRONMENT: test
+      MARKINOTE_VERSION: ci
+      MARKINOTE_VOLUME_PREFIX: markinote_ci_${{ github.run_id }}_${{ github.run_attempt }}
+      MARKINOTE_ACCESS_TOKEN: ci-container-token
+      MARKINOTE_SECRET_KEY: ci-container-session-secret
+      MARKINOTE_PUBLIC_ORIGIN: https://markinote.example.test
+      MARKINOTE_TRUSTED_HOSTS: '["markinote.example.test","api","127.0.0.1","localhost"]'
+      MARKINOTE_EXPECT_SERVER_AI_KEY: "true"
+      MARKINOTE_AI_API_KEY: ci-managed-provider-key-sentinel-must-not-appear-in-logs
+      MARKINOTE_AI_PROVIDER_FIXTURE_URL: http://fake-provider:8099
+      MARKINOTE_QUERY_CREDENTIAL_SENTINEL: ci-query-secret-sentinel-must-not-appear
+      MARKINOTE_POSTGRES_PASSWORD: ci-postgres-validation-password
+      MARKINOTE_DATABASE_URL: sqlite:////data/state/markinote.db
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate local Compose model
+        run: docker compose -f infra/compose.yaml config --quiet
+
+      - name: Prove Docker build context excludes nested secrets and runtime data
+        run: python3 infra/ci/docker-context-secrets-smoke.py
+
+      - name: Validate digest-only production Compose model
+        env:
+          MARKINOTE_VERSION: v4.0.0
+          MARKINOTE_API_IMAGE: ghcr.io/example/markinote-api
+          MARKINOTE_GATEWAY_IMAGE: ghcr.io/example/markinote-gateway
+          MARKINOTE_API_DIGEST: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          MARKINOTE_GATEWAY_DIGEST: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          MARKINOTE_ACCESS_TOKEN: ci-production-validation-access-token
+          MARKINOTE_SECRET_KEY: ci-production-validation-distinct-session-secret
+        shell: bash
+        run: |
+          preflight_output="$(python3 infra/ci/production-compose-preflight.py)"
+          printf '%s\n' "$preflight_output"
+          if [[ "$preflight_output" == *"$MARKINOTE_AI_API_KEY"* ]]; then
+            echo "Production preflight exposed the server-managed AI key." >&2
+            exit 1
+          fi
+          if MARKINOTE_API_IMAGE=ghcr.io/example/markinote-api:v0 \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted a mutable image tag." >&2
+            exit 1
+          fi
+          if env -u MARKINOTE_API_DIGEST \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted a missing digest." >&2
+            exit 1
+          fi
+          if MARKINOTE_GATEWAY_DIGEST="$MARKINOTE_API_DIGEST" \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted one digest for both images." >&2
+            exit 1
+          fi
+          if MARKINOTE_VERSION=local \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted a non-release application version." >&2
+            exit 1
+          fi
+          if MARKINOTE_PUBLIC_ORIGIN='https://markinote.example.test:70000' \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted an invalid public-origin port." >&2
+            exit 1
+          fi
+          for invalid_capacity in \
+            'MARKINOTE_MAX_LIBRARY_BYTES=0' \
+            'MARKINOTE_TRASH_MAX_ITEMS=-1' \
+            'MARKINOTE_TRASH_MAX_BYTES=not-an-integer'; do
+            if env "$invalid_capacity" \
+              python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+              echo "Production preflight accepted an invalid capacity setting." >&2
+              exit 1
+            fi
+          done
+          for invalid_stream_limit in \
+            'MARKINOTE_AI_MAX_PROVIDER_FRAME_BYTES=0' \
+            'MARKINOTE_AI_MAX_PROVIDER_EVENTS=100001' \
+            'MARKINOTE_AI_MAX_PROVIDER_BYTES=not-an-integer' \
+            'MARKINOTE_AI_MAX_STREAM_SECONDS=3601'; do
+            if env "$invalid_stream_limit" \
+              python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+              echo "Production preflight accepted an unsafe AI stream limit." >&2
+              exit 1
+            fi
+          done
+          if MARKINOTE_AI_MAX_CONTENT_BYTES_TOTAL=1024 \
+            MARKINOTE_AI_MAX_CONTENT_BYTES_PER_ROUND=2048 \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted an invalid AI content-limit relationship." >&2
+            exit 1
+          fi
+          if MARKINOTE_AI_MAX_TOOL_ARGUMENTS_BYTES=65536 \
+            MARKINOTE_AI_MAX_SSE_EVENT_BYTES=65536 \
+            python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+            echo "Production preflight accepted an SSE budget that cannot carry a tool result." >&2
+            exit 1
+          fi
+          for incomplete_hosts in \
+            '["markinote.example.test","api"]' \
+            '["markinote.example.test","127.0.0.1"]'; do
+            if MARKINOTE_TRUSTED_HOSTS="$incomplete_hosts" \
+              python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+              echo "Production preflight accepted missing internal health hosts." >&2
+              exit 1
+            fi
+          done
+          for unsafe_reconciliation in \
+            'MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP=false' \
+            'MARKINOTE_AGENT_RUN_SINGLE_WRITER=false' \
+            'MARKINOTE_AGENT_RUN_RECONCILE_LIMIT=0' \
+            'MARKINOTE_AGENT_RUN_RECONCILE_LIMIT=10001' \
+            'MARKINOTE_AGENT_RUN_RECONCILE_LIMIT=not-an-integer'; do
+            if env "$unsafe_reconciliation" \
+              python3 infra/ci/production-compose-preflight.py > /dev/null 2>&1; then
+              echo "Production preflight accepted an unsafe startup reconciliation contract." >&2
+              exit 1
+            fi
+          done
+
+      - name: Build images
+        run: docker compose -f infra/compose.yaml build --pull api gateway
+
+      - name: Verify production image filesystem allowlists
+        run: |
+          mkdir -p .artifacts/container-smoke
+          python3 infra/ci/image-content-smoke.py \
+            | tee .artifacts/container-smoke/image-content.json
+
+      - name: Prove real NGINX forwards delayed SSE incrementally
+        run: |
+          python3 infra/ci/nginx-sse-stream-smoke.py \
+            | tee .artifacts/container-smoke/nginx-sse.json
+
+      - name: Run container smoke tests
+        run: |
+          docker compose -f infra/compose.yaml up --detach --wait api gateway
+          curl --fail --silent --show-error http://127.0.0.1:8080/ > /dev/null
+          curl --fail --silent --show-error --head http://127.0.0.1:8080/ | grep -i '^content-security-policy:'
+
+      - name: Prove isolated provider egress and full incremental SSE
+        env:
+          MARKINOTE_GATEWAY_EVIDENCE_PATH: .artifacts/container-smoke/gateway-document.json
+        run: |
+          python3 infra/ci/egress-topology-smoke.py \
+            | tee .artifacts/container-smoke/egress-topology.json
+
+      - name: Capture synthetic gateway performance baseline
+        shell: bash
+        run: |
+          if MARKINOTE_BASELINE_BASE_URL='https://user:password@example.test/path?token=forbidden' \
+            python3 infra/ci/gateway-performance-baseline.py > /dev/null 2>&1; then
+            echo "Performance baseline accepted a credential-bearing non-origin URL." >&2
+            exit 1
+          fi
+          if MARKINOTE_BASELINE_BASE_URL='https://example.test//not-an-origin' \
+            python3 infra/ci/gateway-performance-baseline.py > /dev/null 2>&1; then
+            echo "Performance baseline accepted a URL path instead of an origin." >&2
+            exit 1
+          fi
+          python3 infra/ci/gateway-performance-baseline.py \
+            --warmup 3 --samples 20 --minimum-interval-ms 125 \
+            | tee .artifacts/container-smoke/gateway-performance.json
+
+      - name: Reject server-managed AI key leakage in runtime logs
+        shell: bash
+        run: |
+          runtime_logs="$(docker compose -f infra/compose.yaml logs --no-color api gateway)"
+          for sentinel in "$MARKINOTE_AI_API_KEY" "$MARKINOTE_QUERY_CREDENTIAL_SENTINEL"; do
+            if grep --fixed-strings --quiet -- "$sentinel" <<< "$runtime_logs"; then
+              echo "Runtime logs exposed a credential sentinel." >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload container smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-smoke-evidence
+          path: .artifacts/container-smoke
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Rehearse isolated PostgreSQL and document-volume restore
+        run: |
+          python3 infra/ci/backup-restore-rehearsal.py \
+            --artifact-dir .artifacts/restore-rehearsal
+          python3 infra/ci/local-volume-restore-rehearsal.py \
+            --artifact-dir .artifacts/restore-rehearsal/local-volumes
+
+      - name: Upload restore rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-restore-rehearsal
+          path: .artifacts/restore-rehearsal
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: markinote-api:ci
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Scan gateway image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: markinote-gateway:ci
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Container diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          docker compose -f infra/compose.yaml logs --no-color --tail=300 \
+            > "$RUNNER_TEMP/markinote-container.log" 2>&1 || true
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          content = (Path(os.environ["RUNNER_TEMP"]) / "markinote-container.log").read_text(
+              encoding="utf-8", errors="replace"
+          )
+          for name in (
+              "MARKINOTE_ACCESS_TOKEN",
+              "MARKINOTE_SECRET_KEY",
+              "MARKINOTE_AI_API_KEY",
+              "MARKINOTE_QUERY_CREDENTIAL_SENTINEL",
+              "MARKINOTE_DATABASE_URL",
+              "MARKINOTE_POSTGRES_PASSWORD",
+          ):
+              value = os.environ.get(name, "")
+              if value:
+                  content = content.replace(value, "[REDACTED]")
+          print(content)
+          PY
+
+      - name: Tear down containers and volumes
+        if: always()
+        run: docker compose -f infra/compose.yaml down --volumes --remove-orphans
+
+  security:
+    name: Dependency, secret, and configuration security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Audit Python dependencies
+        run: |
+          uv sync --frozen --all-extras
+          mkdir -p .artifacts
+          uv export --frozen --all-extras --no-emit-project --no-hashes \
+            --output-file .artifacts/audit-requirements.txt
+          uvx --from pip-audit==2.9.0 pip-audit \
+            --no-deps --disable-pip --progress-spinner off \
+            --requirement .artifacts/audit-requirements.txt --strict
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            packages/api-client/package-lock.json
+
+      - name: Audit JavaScript dependencies, including build and test tools
+        run: |
+          npm ci --prefix apps/web
+          npm ci --prefix packages/api-client
+          npm audit --prefix apps/web --audit-level=high
+          npm audit --prefix packages/api-client --audit-level=high
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Filesystem and IaC scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

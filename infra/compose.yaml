@@ -1,0 +1,299 @@
+name: markinote
+
+x-service-security: &service-security
+  init: true
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  api:
+    <<: *service-security
+    image: ${MARKINOTE_API_IMAGE:-markinote-api}:${MARKINOTE_VERSION:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.api
+      args:
+        PYTHON_BASE_IMAGE: ${MARKINOTE_PYTHON_BASE_IMAGE:-python:3.12.11-slim-bookworm}
+        VERSION: ${MARKINOTE_VERSION:-local}
+        VCS_REF: ${MARKINOTE_VCS_REF:-local}
+        BUILD_DATE: ${MARKINOTE_BUILD_DATE:-local}
+        SOURCE_URL: ${MARKINOTE_SOURCE_URL:-unknown}
+    environment:
+      MARKINOTE_ENVIRONMENT: ${MARKINOTE_ENVIRONMENT:-development}
+      MARKINOTE_APP_VERSION: ${MARKINOTE_VERSION:-local}
+      MARKINOTE_LOG_LEVEL: ${MARKINOTE_LOG_LEVEL:-INFO}
+      MARKINOTE_JSON_LOGS: ${MARKINOTE_JSON_LOGS:-true}
+      MARKINOTE_LIBRARY_FOLDER: /data/library
+      MARKINOTE_CONVERSATIONS_FOLDER: /data/conversations
+      MARKINOTE_BACKUPS_FOLDER: /data/backups
+      MARKINOTE_TRASH_FOLDER: /data/trash
+      MARKINOTE_DATABASE_URL: ${MARKINOTE_DATABASE_URL:-sqlite:////data/state/markinote.db}
+      MARKINOTE_CONVERSATION_BACKEND: ${MARKINOTE_CONVERSATION_BACKEND:-json}
+      MARKINOTE_AUTO_CREATE_DATABASE: ${MARKINOTE_AUTO_CREATE_DATABASE:-true}
+      MARKINOTE_ACCESS_TOKEN: ${MARKINOTE_ACCESS_TOKEN:-}
+      MARKINOTE_SECRET_KEY: ${MARKINOTE_SECRET_KEY:-}
+      MARKINOTE_PUBLIC_ORIGIN: ${MARKINOTE_PUBLIC_ORIGIN:-}
+      MARKINOTE_TRUSTED_ORIGINS: ${MARKINOTE_TRUSTED_ORIGINS:-[]}
+      MARKINOTE_TRUSTED_HOSTS: ${MARKINOTE_TRUSTED_HOSTS:-["127.0.0.1","localhost","testserver","api"]}
+      MARKINOTE_METRICS_ENABLED: ${MARKINOTE_METRICS_ENABLED:-true}
+      MARKINOTE_BACKUP_MAX_GROUPS: ${MARKINOTE_BACKUP_MAX_GROUPS:-100}
+      MARKINOTE_BACKUP_MAX_BYTES: ${MARKINOTE_BACKUP_MAX_BYTES:-268435456}
+      MARKINOTE_TRASH_MAX_ITEMS: ${MARKINOTE_TRASH_MAX_ITEMS:-500}
+      MARKINOTE_TRASH_MAX_BYTES: ${MARKINOTE_TRASH_MAX_BYTES:-1073741824}
+      MARKINOTE_AI_GENERATE_TITLES: ${MARKINOTE_AI_GENERATE_TITLES:-false}
+      MARKINOTE_AI_API_KEY: ${MARKINOTE_AI_API_KEY:-}
+      MARKINOTE_AI_PROVIDER_FIXTURE_URL: ${MARKINOTE_AI_PROVIDER_FIXTURE_URL:-}
+      MARKINOTE_AI_MAX_PROVIDER_FRAME_BYTES: ${MARKINOTE_AI_MAX_PROVIDER_FRAME_BYTES:-262144}
+      MARKINOTE_AI_MAX_PROVIDER_EVENTS: ${MARKINOTE_AI_MAX_PROVIDER_EVENTS:-4096}
+      MARKINOTE_AI_MAX_PROVIDER_BYTES: ${MARKINOTE_AI_MAX_PROVIDER_BYTES:-8388608}
+      MARKINOTE_AI_MAX_CONTENT_BYTES_PER_ROUND: ${MARKINOTE_AI_MAX_CONTENT_BYTES_PER_ROUND:-524288}
+      MARKINOTE_AI_MAX_CONTENT_BYTES_TOTAL: ${MARKINOTE_AI_MAX_CONTENT_BYTES_TOTAL:-1048576}
+      MARKINOTE_AI_MAX_TOOL_ARGUMENTS_BYTES: ${MARKINOTE_AI_MAX_TOOL_ARGUMENTS_BYTES:-65536}
+      MARKINOTE_AI_MAX_SSE_EVENT_BYTES: ${MARKINOTE_AI_MAX_SSE_EVENT_BYTES:-524288}
+      MARKINOTE_AI_MAX_STREAM_SECONDS: ${MARKINOTE_AI_MAX_STREAM_SECONDS:-600}
+      # Safe by default for local experimentation. The production overlay
+      # enables bounded startup reconciliation only while the topology remains
+      # exactly one API container with one Uvicorn worker.
+      MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP: ${MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP:-false}
+      MARKINOTE_AGENT_RUN_SINGLE_WRITER: ${MARKINOTE_AGENT_RUN_SINGLE_WRITER:-false}
+      MARKINOTE_AGENT_RUN_RECONCILE_LIMIT: ${MARKINOTE_AGENT_RUN_RECONCILE_LIMIT:-1000}
+      MARKINOTE_MAX_REQUEST_BYTES: ${MARKINOTE_MAX_REQUEST_BYTES:-16777216}
+      MARKINOTE_MAX_DOCUMENT_BYTES: ${MARKINOTE_MAX_DOCUMENT_BYTES:-2097152}
+      MARKINOTE_MAX_PREVIEW_BYTES: ${MARKINOTE_MAX_PREVIEW_BYTES:-2097152}
+      MARKINOTE_MAX_LIBRARY_BYTES: ${MARKINOTE_MAX_LIBRARY_BYTES:-1073741824}
+      MARKINOTE_REDIS_URL: ${MARKINOTE_REDIS_URL:-redis://redis:6379/0}
+      MARKINOTE_OTEL_ENABLED: ${MARKINOTE_OTEL_ENABLED:-false}
+      MARKINOTE_OTEL_ENDPOINT: ${MARKINOTE_OTEL_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      MARKINOTE_OTEL_SERVICE_NAME: ${MARKINOTE_OTEL_SERVICE_NAME:-markinote-api}
+    expose:
+      - "8000"
+    volumes:
+      - library:/data/library
+      - conversations:/data/conversations
+      - backups:/data/backups
+      - trash:/data/trash
+      - state:/data/state
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,uid=10001,gid=10001,mode=1777
+    networks:
+      - backend
+      - telemetry
+      - egress
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 45s
+    logging: *json-logging
+
+  migrate:
+    <<: *service-security
+    image: ${MARKINOTE_API_IMAGE:-markinote-api}:${MARKINOTE_VERSION:-local}
+    profiles: ["migration"]
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      MARKINOTE_ENVIRONMENT: ${MARKINOTE_ENVIRONMENT:-development}
+      MARKINOTE_APP_VERSION: ${MARKINOTE_VERSION:-local}
+      # Importing the application package currently initializes runtime paths
+      # before Alembic loads the model metadata. Keep those incidental paths on
+      # the migration container's writable tmpfs; only database state persists.
+      MARKINOTE_LIBRARY_FOLDER: /tmp/markinote/library
+      MARKINOTE_CONVERSATIONS_FOLDER: /tmp/markinote/conversations
+      MARKINOTE_BACKUPS_FOLDER: /tmp/markinote/backups
+      MARKINOTE_TRASH_FOLDER: /tmp/markinote/trash
+      MARKINOTE_TRUSTED_HOSTS: ${MARKINOTE_TRUSTED_HOSTS:-["127.0.0.1","localhost","testserver","api"]}
+      MARKINOTE_DATABASE_URL: ${MARKINOTE_DATABASE_URL:-sqlite:////data/state/markinote.db}
+      MARKINOTE_AUTO_CREATE_DATABASE: "false"
+    volumes:
+      - state:/data/state
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=10001,gid=10001,mode=1777
+    networks:
+      - backend
+    restart: "no"
+    logging: *json-logging
+
+  gateway:
+    <<: *service-security
+    image: ${MARKINOTE_GATEWAY_IMAGE:-markinote-gateway}:${MARKINOTE_VERSION:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.web
+      args:
+        NODE_BASE_IMAGE: ${MARKINOTE_NODE_BASE_IMAGE:-node:22.17.0-alpine3.21}
+        NGINX_BASE_IMAGE: ${MARKINOTE_NGINX_BASE_IMAGE:-nginx:1.28.0-alpine}
+        VERSION: ${MARKINOTE_VERSION:-local}
+        VCS_REF: ${MARKINOTE_VCS_REF:-local}
+        BUILD_DATE: ${MARKINOTE_BUILD_DATE:-local}
+        SOURCE_URL: ${MARKINOTE_SOURCE_URL:-unknown}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${MARKINOTE_HTTP_BIND:-127.0.0.1}:${MARKINOTE_HTTP_PORT:-8080}:8080"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=1777
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/gateway-health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 20s
+    logging: *json-logging
+
+  postgres:
+    image: postgres:17.5-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: ${MARKINOTE_POSTGRES_DB:-markinote}
+      POSTGRES_USER: ${MARKINOTE_POSTGRES_USER:-markinote}
+      POSTGRES_PASSWORD: ${MARKINOTE_POSTGRES_PASSWORD:-markinote-local-only}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${MARKINOTE_POSTGRES_PORT:-5432}:5432"
+    networks:
+      - backend
+      - ops
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    shm_size: 256m
+    logging: *json-logging
+
+  redis:
+    image: redis:7.4.5-alpine
+    profiles: ["redis"]
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis:/data
+    ports:
+      - "127.0.0.1:${MARKINOTE_REDIS_PORT:-6379}:6379"
+    networks:
+      - backend
+      - ops
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logging
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.130.0
+    profiles: ["observability"]
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    environment:
+      MARKINOTE_ENVIRONMENT: ${MARKINOTE_ENVIRONMENT:-development}
+    volumes:
+      - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:${MARKINOTE_OTLP_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${MARKINOTE_OTLP_HTTP_PORT:-4318}:4318"
+    networks:
+      - telemetry
+      - ops
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logging
+
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus:/prometheus
+    ports:
+      - "127.0.0.1:${MARKINOTE_PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - backend
+      - telemetry
+      - ops
+    depends_on:
+      api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logging
+
+networks:
+  edge:
+  # Dedicated API outbound path. This bridge restores provider HTTPS/DNS
+  # reachability but is not itself a one-way firewall; production policy must
+  # restrict destinations at the host/orchestrator boundary.
+  egress:
+  backend:
+    internal: true
+  telemetry:
+    internal: true
+  # Loopback-published optional infrastructure needs a host-reachable bridge.
+  # It is separate from the public gateway edge network.
+  ops:
+
+volumes:
+  library:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_library
+  conversations:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_conversations
+  backups:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_backups
+  trash:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_trash
+  state:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_state
+  postgres:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_postgres
+  redis:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_redis
+  prometheus:
+    name: ${MARKINOTE_VOLUME_PREFIX:-markinote}_prometheus

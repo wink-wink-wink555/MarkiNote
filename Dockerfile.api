@@ -1,0 +1,76 @@
+ARG PYTHON_BASE_IMAGE=python:3.12.11-slim-bookworm
+
+FROM ${PYTHON_BASE_IMAGE} AS python-builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /build
+RUN python -m venv /opt/build-venv \
+    && python -m venv /opt/venv
+
+# Copy dependency metadata before source to retain the dependency layer cache.
+COPY pyproject.toml requirements.build.lock.txt requirements.lock.txt README.md ./
+COPY apps/api/src ./apps/api/src
+RUN /opt/build-venv/bin/pip install --no-compile --only-binary=:all: \
+      --require-hashes --requirement requirements.build.lock.txt \
+    && /opt/venv/bin/pip install --no-compile --only-binary=:all: \
+      --require-hashes --requirement requirements.lock.txt
+RUN --network=none /opt/build-venv/bin/pip wheel --no-deps \
+      --no-build-isolation --wheel-dir /tmp/markinote-wheel . \
+    && test "$(find /tmp/markinote-wheel -maxdepth 1 -type f -name 'markinote-*.whl' | wc -l)" = "1"
+RUN --network=none /opt/venv/bin/pip install --no-compile --no-deps --no-index \
+      /tmp/markinote-wheel/markinote-*.whl \
+    && /opt/venv/bin/python -m pip uninstall --yes pip
+
+
+FROM ${PYTHON_BASE_IMAGE} AS runtime
+
+ARG VCS_REF="unknown"
+ARG BUILD_DATE="unknown"
+ARG VERSION="0.0.0-local"
+ARG SOURCE_URL="unknown"
+
+LABEL org.opencontainers.image.title="MarkiNote API" \
+      org.opencontainers.image.description="MarkiNote ASGI modular monolith" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.licenses="MIT"
+
+ENV PATH="/opt/venv/bin:${PATH}" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MARKINOTE_HOST="0.0.0.0" \
+    MARKINOTE_PORT="8000"
+
+WORKDIR /srv/markinote
+
+RUN groupadd --gid 10001 markinote \
+    && useradd --uid 10001 --gid markinote --no-create-home --shell /usr/sbin/nologin markinote \
+    && mkdir -p /data/library /data/conversations /data/backups /data/trash /data/state \
+    && chown -R markinote:markinote /data
+
+COPY --from=python-builder /opt/venv /opt/venv
+COPY --chown=markinote:markinote LICENSE /usr/share/licenses/markinote/LICENSE
+COPY --chown=markinote:markinote alembic.ini ./
+# Keep the production filesystem allow-listed. Alembic needs env.py,
+# script.py.mako, and versions/ under migrations; operational migration tools
+# live under scripts. Unit tests, coverage, and local caches never enter the
+# runtime image.
+COPY --chown=markinote:markinote apps/api/migrations ./apps/api/migrations
+COPY --chown=markinote:markinote apps/api/scripts ./apps/api/scripts
+
+USER 10001:10001
+EXPOSE 8000
+STOPSIGNAL SIGTERM
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2).read()"]
+
+# One worker is intentional while LocalFS and process-local coordination remain
+# the default. Scale-out requires the database/idempotency milestone first.
+CMD ["uvicorn", "markinote_api.application:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]

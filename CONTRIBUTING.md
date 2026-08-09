@@ -1,259 +1,103 @@
-# 贡献指南 🎉
+# 贡献指南
 
-首先，感谢你愿意为 MarkiNote 贡献力量！(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧
+## 支持环境
 
-这份指南会帮助你了解如何为这个项目做出贡献。
+- Python 3.12；`uv.lock` 是开发与 CI 的唯一 Python 解析结果。
+- Node.js 22（最低 20.19）；`apps/web` 与 `packages/api-client` 分别维护 lockfile。
+- Docker Desktop（或 Docker Engine）与 Compose v2 用于完整栈、数据库、恢复和镜像门禁。
 
----
+Windows PowerShell 初始化：
 
-## 💡 贡献方式
-
-你可以通过以下方式为 MarkiNote 做出贡献：
-
-### 🐛 报告 Bug
-发现了问题？请告诉我们！
-
-1. 在 [Issues](https://github.com/wink-wink-wink555/MarkiNote/issues) 页面搜索，确认问题还没有被报告
-2. 创建新的 Issue，使用 Bug 模板
-3. 详细描述问题：
-   - 你的操作步骤
-   - 预期的结果
-   - 实际的结果
-   - 截图（如果有的话）
-   - 系统环境（操作系统、Python 版本等）
-
-### ✨ 提出新功能
-有好点子？我们很乐意听！(｡♥‿♥｡)
-
-1. 在 Issues 中创建 Feature Request
-2. 描述你的想法：
-   - 这个功能解决什么问题？
-   - 你期望的使用方式是什么？
-   - 有没有参考的例子？
-
-### 📝 改进文档
-文档永远可以更好！
-
-- 修正拼写错误
-- 补充使用说明
-- 添加更多示例
-- 翻译成其他语言
-
-### 💻 提交代码
-准备好贡献代码了？太棒了！ヾ(≧▽≦*)o
-
----
-
-## 🚀 开发流程
-
-### 1. Fork 和克隆项目
-
-```bash
-# Fork 项目到你的 GitHub 账号
-# 然后克隆你的 fork
-
-git clone https://github.com/你的用户名/MarkiNote.git
-cd MarkiNote
+```powershell
+uv sync --frozen --all-extras
+npm ci --prefix packages/api-client
+npm ci --prefix apps/web
+Copy-Item .env.example .env
 ```
 
-### 2. 创建分支
+不要手工编辑 lockfile。依赖变更必须由对应包管理器重新解析，并在 PR 中说明供应链、镜像和运行时影响。根 `package.json` 只汇总跨项目命令，不需要第三套 Node 安装。
 
-为你的改动创建一个新分支：
+## 本地运行
 
-```bash
-git checkout -b feature/你的功能名称
-# 或
-git checkout -b fix/bug修复描述
+推荐通过同源网关运行完整栈：
+
+```powershell
+docker compose up -d --build --wait
 ```
 
-**分支命名规范：**
-- `feature/功能名称` - 新功能
-- `fix/bug描述` - Bug 修复
-- `docs/文档说明` - 文档更新
-- `refactor/重构说明` - 代码重构
-- `style/样式说明` - 样式调整
+访问 `http://127.0.0.1:8080`。日志可通过 `docker compose logs -f api gateway` 查看。
 
-### 3. 开发环境设置
+只调试 API：
 
-```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 启动开发服务器
-python main.py
+```powershell
+uv run uvicorn markinote_api.application:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### 4. 进行修改
+只调试 React：
 
-- 确保代码符合项目的编码风格
-- 添加必要的注释
-- 如果是新功能，更新相关文档
-- 测试你的改动
-
-### 5. 提交更改
-
-```bash
-# 添加改动的文件
-git add .
-
-# 提交（使用清晰的提交信息）
-git commit -m "feat: 添加导出 HTML 功能"
-# 或
-git commit -m "fix: 修复数学公式渲染问题"
+```powershell
+$env:VITE_API_PROXY='http://127.0.0.1:8000'
+npm run dev --prefix apps/web
 ```
 
-**提交信息规范：**
-- `feat:` - 新功能
-- `fix:` - Bug 修复
-- `docs:` - 文档更新
-- `style:` - 代码格式调整
-- `refactor:` - 代码重构
-- `test:` - 测试相关
-- `chore:` - 其他杂项
+## 提交前门禁
 
-### 6. 推送到你的 Fork
+后端：
 
-```bash
-git push origin feature/你的功能名称
+```powershell
+uv run ruff check apps/api/src apps/api/scripts tests apps/api/tests infra
+uv run mypy apps/api/src/markinote_api
+uv run pytest -q
+uv run pytest apps/api/tests -q --cov=markinote_api --cov-config=pyproject.toml --cov-report=term-missing
 ```
 
-### 7. 创建 Pull Request
+契约、前端与浏览器：
 
-1. 访问你的 Fork 页面
-2. 点击 "New Pull Request"
-3. 填写 PR 描述：
-   - 改动的内容
-   - 解决的问题
-   - 相关的 Issue 编号（如果有）
-4. 提交 PR
-
----
-
-## 📋 代码规范
-
-### Python 代码风格
-
-- 遵循 [PEP 8](https://www.python.org/dev/peps/pep-0008/) 规范
-- 使用 4 个空格缩进（不使用 Tab）
-- 函数和变量使用小写加下划线：`my_function`
-- 类名使用大驼峰：`MyClass`
-- 常量使用全大写：`MAX_SIZE`
-
-**示例：**
-```python
-def process_markdown(content):
-    """处理 Markdown 内容
-    
-    Args:
-        content: 原始 Markdown 文本
-        
-    Returns:
-        处理后的 HTML 内容
-    """
-    # 你的代码
-    return html_content
+```powershell
+uv run python apps/api/scripts/export_openapi.py
+npm run generate --prefix packages/api-client
+npm run typecheck --prefix packages/api-client
+npm run typecheck --prefix apps/web
+npm run lint --prefix apps/web
+npm run test:coverage --prefix apps/web
+npm run build --prefix apps/web
+npx --prefix apps/web playwright install chromium
+npm run e2e --prefix apps/web -- --project=chromium --project=mobile-chrome
 ```
 
-### JavaScript 代码风格
+容器模型：
 
-- 使用 2 个空格缩进
-- 使用驼峰命名：`myFunction`
-- 使用 `const` 和 `let`，避免 `var`
-- 添加适当的注释
-
-**示例：**
-```javascript
-/**
- * 预览 Markdown 文件
- * @param {string} filePath - 文件路径
- */
-function previewFile(filePath) {
-  // 你的代码
-}
+```powershell
+docker compose config --quiet
 ```
 
-### CSS 代码风格
+真实 PostgreSQL、NGINX SSE、备份恢复、安全扫描、SBOM 和镜像 hardening 由 CI 独立 job 验证。涉及这些边界的修改应按 [README](README_CN.md) 中的发布、备份与故障处置说明补做相应演练。
 
-- 使用 2 个空格缩进
-- 类名使用小写加连字符：`.my-class`
-- 合理组织 CSS 规则
+## 架构与数据约束
 
----
+- 依赖方向保持为 HTTP adapter → application/domain port → infrastructure adapter；新增跨层导入需在 PR 中记录设计决策，并同步公开 README 中受影响的架构说明。
+- 文件路径统一通过 `markinote_api.platform.paths` 和文档领域服务解析，禁止直接拼接用户输入。
+- 持久化使用原子写、乐观版本或事务；不得绕开配额、锁、journal、before-image 与补偿语义。
+- 数据库 schema 只通过 Alembic 演进；生产禁止 ORM 隐式建表。
+- OpenAPI 与版本化 Agent SSE 事件是外部契约。OpenAPI 快照、生成客户端和相关 SSE 契约测试必须可重复且无意外 drift。
+- LocalFS 当前只允许一个 API writer；没有共享存储与跨进程协调前，不得通过增加 worker 或副本掩盖容量问题。
 
-## ✅ 检查清单
+## 安全与隐私
 
-在提交 PR 之前，请确保：
+- Access token 与 AI API Key 不得进入 URL、浏览器持久化、日志、trace、测试快照或制品。
+- 用户正文、附件和 prompt 默认不进入结构化日志与 telemetry；审计只记录低基数 metadata/hash。
+- 用户或 AI 生成的内容进入 HTML 前必须经过现有清洗管线；URL fetch 必须保留 DNS、peer 与逐跳 redirect 校验。
+- 新文件入口、工具参数和迁移脚本需覆盖 traversal、symlink、Unicode/Windows 路径、超限、冲突、失败补偿和损坏输入。
+- 不得通过降低测试、覆盖率或扫描阈值让门禁“恢复通过”。
 
-- [ ] 代码可以正常运行
-- [ ] 没有引入新的错误或警告
-- [ ] 代码符合项目风格规范
-- [ ] 添加了必要的注释
-- [ ] 更新了相关文档
-- [ ] 提交信息清晰明确
-- [ ] PR 描述完整
+## Pull Request 与发布
 
----
+PR 至少说明：
 
-## 🎨 设计原则
+1. 用户价值、根因与行为变化；
+2. 数据、契约、安全、并发和回滚影响；
+3. 可复现的验证命令与结果；
+4. UI 变更的脱敏桌面/移动证据；
+5. 新迁移、配置、指标、告警或 README 操作说明更新。
 
-在开发新功能时，请遵循以下原则：
-
-1. **简单易用** ✨
-   - 功能要直观，用户无需查看文档就能理解
-   - 避免过度复杂的设计
-
-2. **性能优先** ⚡
-   - 保持应用轻量快速
-   - 优化大文件的处理
-
-3. **美观友好** 🎨
-   - 保持界面风格一致
-   - 注重用户体验
-
-4. **安全可靠** 🔒
-   - 验证用户输入
-   - 处理错误情况
-
----
-
-## 🤝 社区准则
-
-为了维护一个友好、包容的社区环境，请：
-
-- ✅ 尊重他人的观点和经验
-- ✅ 优雅地接受建设性批评
-- ✅ 关注对社区最有利的事情
-- ✅ 对其他社区成员表现出同理心
-
-- ❌ 使用性化的语言或图像
-- ❌ 进行人身攻击或侮辱
-- ❌ 发表不恰当的评论
-- ❌ 骚扰他人
-
----
-
-## 📞 联系方式
-
-有任何问题？随时联系我们！(｡･ω･｡)ﾉ♡
-
-- 📧 GitHub Issues: [提交 Issue](https://github.com/wink-wink-wink555/MarkiNote/issues)
-- 💬 Pull Requests: [查看 PRs](https://github.com/wink-wink-wink555/MarkiNote/pulls)
-
----
-
-## 💖 致谢
-
-感谢所有为 MarkiNote 做出贡献的开发者！
-
-每一个 Issue、每一个 PR、每一条建议，都让这个项目变得更好！(づ｡◕‿‿◕｡)づ
-
----
-
-<div align="center">
-
-**让我们一起让 MarkiNote 变得更棒！** ✧*｡٩(ˊᗜˋ*)و✧*｡
-
-Happy Coding! ❤️
-
-</div>
-
+提交信息建议使用 `feat:`、`fix:`、`docs:`、`refactor:`、`test:` 或 `chore:` 前缀。Release tag、required checks、审批和分支保护仍须由 GitHub 仓库设置实际启用；工作流文件本身不等于外部控制已经生效。具体发布门禁见 [README](README_CN.md#release-governance)。

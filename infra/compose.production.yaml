@@ -1,0 +1,127 @@
+# Production hardening overlay. Use together with compose.yaml and an explicit
+# env file; see the production deployment section in README.md. It intentionally does not publish
+# PostgreSQL, Redis, Prometheus, or OTLP beyond their loopback defaults.
+services:
+  api:
+    # Production consumes an immutable manifest digest. A tag, even a SemVer
+    # tag, remains mutable in every OCI registry and is therefore insufficient
+    # as a deployment identity.
+    image: ${MARKINOTE_API_IMAGE:?MARKINOTE_API_IMAGE repository is required}@${MARKINOTE_API_DIGEST:?MARKINOTE_API_DIGEST sha256 digest is required}
+    build: !reset null
+    pull_policy: always
+    environment:
+      MARKINOTE_ENVIRONMENT: production
+      MARKINOTE_JSON_LOGS: "true"
+      MARKINOTE_ACCESS_TOKEN: ${MARKINOTE_ACCESS_TOKEN:?MARKINOTE_ACCESS_TOKEN is required in production}
+      MARKINOTE_SECRET_KEY: ${MARKINOTE_SECRET_KEY:?MARKINOTE_SECRET_KEY is required in production}
+      MARKINOTE_PUBLIC_ORIGIN: ${MARKINOTE_PUBLIC_ORIGIN:?MARKINOTE_PUBLIC_ORIGIN is required in production}
+      MARKINOTE_TRUSTED_HOSTS: ${MARKINOTE_TRUSTED_HOSTS:?MARKINOTE_TRUSTED_HOSTS is required in production}
+      MARKINOTE_AUTO_CREATE_DATABASE: "false"
+      MARKINOTE_AI_PROVIDER_FIXTURE_URL: ""
+      # This deployment contract is exactly one API container and the image
+      # starts one Uvicorn worker. Disable both switches before any scale-out;
+      # multi-writer recovery requires lease ownership/fencing first.
+      MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP: ${MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP:-true}
+      MARKINOTE_AGENT_RUN_SINGLE_WRITER: ${MARKINOTE_AGENT_RUN_SINGLE_WRITER:-true}
+      MARKINOTE_AGENT_RUN_RECONCILE_LIMIT: ${MARKINOTE_AGENT_RUN_RECONCILE_LIMIT:-1000}
+    mem_limit: 1g
+    cpus: 2.0
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+          pids: 256
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  gateway:
+    image: ${MARKINOTE_GATEWAY_IMAGE:?MARKINOTE_GATEWAY_IMAGE repository is required}@${MARKINOTE_GATEWAY_DIGEST:?MARKINOTE_GATEWAY_DIGEST sha256 digest is required}
+    build: !reset null
+    pull_policy: always
+    mem_limit: 256m
+    cpus: 1.0
+    ulimits:
+      nofile:
+        soft: 8192
+        hard: 8192
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+          pids: 128
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+
+  migrate:
+    image: ${MARKINOTE_API_IMAGE:?MARKINOTE_API_IMAGE repository is required}@${MARKINOTE_API_DIGEST:?MARKINOTE_API_DIGEST sha256 digest is required}
+    pull_policy: always
+    environment:
+      MARKINOTE_ENVIRONMENT: production
+      MARKINOTE_AUTO_CREATE_DATABASE: "false"
+      # Settings validation still runs while Alembic imports model metadata.
+      # Reuse the release's secrets without publishing or logging them.
+      MARKINOTE_ACCESS_TOKEN: ${MARKINOTE_ACCESS_TOKEN:?MARKINOTE_ACCESS_TOKEN is required in production}
+      MARKINOTE_SECRET_KEY: ${MARKINOTE_SECRET_KEY:?MARKINOTE_SECRET_KEY is required in production}
+      MARKINOTE_PUBLIC_ORIGIN: ${MARKINOTE_PUBLIC_ORIGIN:?MARKINOTE_PUBLIC_ORIGIN is required in production}
+      MARKINOTE_TRUSTED_HOSTS: ${MARKINOTE_TRUSTED_HOSTS:?MARKINOTE_TRUSTED_HOSTS is required in production}
+    mem_limit: 512m
+    cpus: 1.0
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 128
+
+  postgres:
+    environment:
+      # Keep the default JSON/SQLite production model renderable when this
+      # optional profile is disabled. PostgreSQL itself rejects an empty value;
+      # the README production deployment guide additionally performs an explicit preflight.
+      POSTGRES_PASSWORD: ${MARKINOTE_POSTGRES_PASSWORD:-}
+    mem_limit: 1g
+    cpus: 2.0
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+          pids: 256
+
+  redis:
+    mem_limit: 256m
+    cpus: 1.0
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+          pids: 128
+
+  otel-collector:
+    mem_limit: 512m
+    cpus: 1.0
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+          pids: 128
+
+  prometheus:
+    mem_limit: 1g
+    cpus: 1.0
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+          pids: 128

@@ -1,0 +1,65 @@
+# Keep Docker build contexts deterministic and small. Both images use this
+# repository root as their context, so the required paths are allow-listed.
+**
+!.dockerignore
+!pyproject.toml
+!alembic.ini
+!requirements.build.lock.txt
+!requirements.lock.txt
+!uv.lock
+!README.md
+!LICENSE
+
+!apps/
+!apps/api/
+!apps/api/**
+!apps/web/
+!apps/web/**
+!packages/
+!packages/api-client/
+!packages/api-client/**
+!infra/
+!infra/nginx/
+!infra/nginx/**
+
+# Build output and local dependency trees must never be copied back in.
+apps/web/node_modules
+apps/web/dist
+apps/web/coverage
+apps/web/playwright-report
+apps/web/test-results
+apps/api/tests
+apps/api/coverage
+packages/api-client/node_modules
+packages/api-client/dist
+packages/api-client/coverage
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/*.egg-info/**
+
+# Re-exclude secrets and runtime data after every directory allowlist above.
+# Vite automatically loads nested .env files, so ordering here is a security
+# boundary rather than only a build-context optimization.
+**/.env
+**/.env.*
+**/.npmrc
+**/.pypirc
+**/.netrc
+**/*.pem
+**/*.key
+**/*.crt
+**/*.cer
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.log
+**/*.secret
+**/secrets/**
+**/.ai_backups/**
+**/.ai_conversations/**
+**/.trash/**

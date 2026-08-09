@@ -1,0 +1,68 @@
+name: Bug report / 缺陷报告
+description: Report a reproducible MarkiNote problem / 报告可复现的问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve MarkiNote. For vulnerabilities, do not continue here; follow SECURITY.md and use a private report.
+
+        感谢反馈。安全漏洞请不要在此公开，请按 SECURITY.md 使用私密报告。
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit / 版本或提交
+      placeholder: v4.0.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment / 运行方式
+      options:
+        - Docker Compose
+        - Native development / 原生开发
+        - Production overlay / 生产覆盖配置
+        - Other / 其它
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps / 复现步骤
+      description: Use the smallest reproducible example. Do not attach private documents or credentials.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: OS, browser, Docker/Compose, Python and Node versions as relevant.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots / 脱敏日志或截图
+      description: Remove tokens, API keys, document text, local paths and personal data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist / 检查
+      options:
+        - label: I searched existing issues and removed secrets and personal data. / 我已搜索现有 Issue，并移除了秘密与个人信息。
+          required: true

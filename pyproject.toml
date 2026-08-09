@@ -1,0 +1,129 @@
+[build-system]
+requires = ["setuptools==83.0.0", "wheel==0.47.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "markinote"
+version = "4.0.0"
+description = "Self-hosted Markdown workspace with an AI agent"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "wink-wink-wink555" }]
+keywords = ["markdown", "notes", "fastapi", "react", "ai-agent", "self-hosted"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.9,<3",
+  "pydantic-settings>=2.5,<3",
+  "SQLAlchemy>=2.0,<3",
+  "alembic>=1.13,<2",
+  "httpx>=0.27,<1",
+  "markdown>=3.5,<4",
+  "beautifulsoup4>=4.12,<5",
+  "bleach>=6.2,<7",
+  "itsdangerous>=2.2,<3",
+  "Pygments>=2.17,<3",
+  "requests>=2.32,<3",
+  "duckduckgo-search>=8.1,<9",
+  "prometheus-client>=0.21,<1",
+  "python-multipart>=0.0.20,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=6,<7",
+  "pytest-asyncio>=1,<2",
+  # Starlette TestClient prefers the next-generation client and warns when
+  # falling back to the production httpx dependency.
+  "httpx2>=2.7,<3",
+  "mypy>=1.14,<2",
+  "ruff>=0.9,<1",
+  "types-bleach>=6.2,<7",
+  "types-Markdown>=3.5,<4",
+]
+postgres = [
+  "psycopg[binary]>=3.2,<4",
+]
+otel = [
+  "opentelemetry-api>=1.29,<2",
+  "opentelemetry-sdk>=1.29,<2",
+  "opentelemetry-exporter-otlp-proto-http>=1.29,<2",
+  "opentelemetry-instrumentation-fastapi>=0.50b0,<1",
+  "opentelemetry-instrumentation-httpx>=0.50b0,<1",
+  "opentelemetry-instrumentation-requests>=0.50b0,<1",
+]
+
+[project.scripts]
+markinote-api = "markinote_api.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/wink-wink-wink555/MarkiNote"
+Repository = "https://github.com/wink-wink-wink555/MarkiNote.git"
+Issues = "https://github.com/wink-wink-wink555/MarkiNote/issues"
+Documentation = "https://github.com/wink-wink-wink555/MarkiNote#readme"
+
+[dependency-groups]
+build = [
+  "setuptools==83.0.0",
+  "wheel==0.47.0",
+]
+
+[tool.setuptools]
+package-dir = { "" = "apps/api/src" }
+
+[tool.setuptools.packages.find]
+where = ["apps/api/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "apps/api/tests"]
+pythonpath = [".", "apps/api/src"]
+addopts = "-ra --strict-markers"
+markers = [
+  "integration: requires external or containerized infrastructure",
+  "e2e: full browser/system test",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["markinote_api"]
+omit = ["*/tests/*", "*/migrations/*"]
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 2
+fail_under = 80
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["apps/api/src", "apps/api/scripts", "tests", "apps/api/tests", "infra"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = [
+  "E501",
+  # FastAPI's dependency declarations intentionally call marker factories in defaults.
+  "B008",
+  # Chinese user-facing copy legitimately uses full-width punctuation.
+  "RUF001",
+  "RUF002",
+  "RUF003",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+exclude = ["apps/web/"]
