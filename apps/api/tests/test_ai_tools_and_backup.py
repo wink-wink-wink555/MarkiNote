@@ -537,14 +537,14 @@ class AiToolsAndBackupTestCase(unittest.TestCase):
         group = self.manager.create_operation_group("late-recovery")
         operation_index = self.manager.backup_before_modify(group, "write_file", source.name)
         self.manager.complete_operation_group(group)
-        group_dir = self.backups / group
+        group_dir = (self.backups / group).resolve()
         original_load = self.manager._load_manifest
         load_count = 0
 
         def load_and_transition(path):
             nonlocal load_count
             manifest = original_load(path)
-            if Path(path) == group_dir:
+            if Path(path).resolve() == group_dir:
                 load_count += 1
                 if load_count == 2:
                     manifest["operations"][operation_index]["command_state"] = "recovery_required"

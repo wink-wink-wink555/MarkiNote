@@ -135,11 +135,11 @@ class DocumentServiceTestCase(unittest.TestCase):
     def test_restore_reports_committed_when_only_trash_metadata_cleanup_fails(self):
         self.service.create_file("", "committed.md", "durable content")
         deleted = self.service.delete("committed.md")
-        metadata_path = self.root / "trash" / deleted["id"] / "metadata.json"
+        metadata_path = (self.root / "trash" / deleted["id"] / "metadata.json").resolve()
         original_unlink = Path.unlink
 
         def fail_metadata_cleanup(path: Path, *args, **kwargs):
-            if path == metadata_path:
+            if path.resolve() == metadata_path:
                 raise PermissionError("simulated post-commit cleanup failure")
             return original_unlink(path, *args, **kwargs)
 

@@ -34,12 +34,12 @@ jobs:
       - name: Configure runtime paths
         shell: bash
         run: |
+          # Migration tests provide their own database URLs; a job-wide override breaks isolation.
           {
             echo "MARKINOTE_LIBRARY_FOLDER=$RUNNER_TEMP/markinote/library"
             echo "MARKINOTE_CONVERSATIONS_FOLDER=$RUNNER_TEMP/markinote/conversations"
             echo "MARKINOTE_BACKUPS_FOLDER=$RUNNER_TEMP/markinote/backups"
             echo "MARKINOTE_TRASH_FOLDER=$RUNNER_TEMP/markinote/trash"
-            echo "MARKINOTE_DATABASE_URL=sqlite:///$RUNNER_TEMP/markinote/state.db"
           } >> "$GITHUB_ENV"
 
       - name: Set up Python
@@ -118,13 +118,13 @@ jobs:
       - name: Configure runtime paths
         shell: pwsh
         run: |
+          # Migration tests provide their own database URLs; a job-wide override breaks isolation.
           $runtimeRoot = (Join-Path $env:RUNNER_TEMP "markinote").Replace('\', '/')
           @(
             "MARKINOTE_LIBRARY_FOLDER=$runtimeRoot/library"
             "MARKINOTE_CONVERSATIONS_FOLDER=$runtimeRoot/conversations"
             "MARKINOTE_BACKUPS_FOLDER=$runtimeRoot/backups"
             "MARKINOTE_TRASH_FOLDER=$runtimeRoot/trash"
-            "MARKINOTE_DATABASE_URL=sqlite:///$runtimeRoot/state.db"
           ) | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Set up Python
@@ -181,7 +181,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            packages/api-client/package-lock.json
+
+      - name: Install exact API client dependencies
+        working-directory: packages/api-client
+        run: npm ci
 
       - name: Install exact frontend dependencies
         run: npm ci
@@ -347,11 +353,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            packages/api-client/package-lock.json
 
       - name: Install runtime and browser dependencies
         run: |
           uv sync --frozen --all-extras
+          npm ci --prefix packages/api-client
           npm ci --prefix apps/web
           npx --prefix apps/web playwright install --with-deps chromium
 
@@ -703,7 +712,7 @@ jobs:
           retention-days: 14
 
       - name: Scan API image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: markinote-api:ci
           format: table
@@ -712,7 +721,7 @@ jobs:
           exit-code: "1"
 
       - name: Scan gateway image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: markinote-gateway:ci
           format: table
@@ -805,7 +814,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Filesystem and IaC scan
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .

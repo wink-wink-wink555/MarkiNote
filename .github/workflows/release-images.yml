@@ -171,7 +171,7 @@ jobs:
             > ".artifacts/release/${{ matrix.image }}-manifest.txt"
 
       - name: Scan final published linux/amd64 manifest by digest
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         env:
           TRIVY_PLATFORM: linux/amd64
           TRIVY_USERNAME: ${{ github.actor }}
@@ -188,7 +188,7 @@ jobs:
 
       - name: Scan final published linux/arm64 manifest by digest
         if: ${{ !cancelled() }}
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         env:
           TRIVY_PLATFORM: linux/arm64
           TRIVY_USERNAME: ${{ github.actor }}

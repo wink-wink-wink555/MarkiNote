@@ -33,7 +33,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            packages/api-client/package-lock.json
+
+      - name: Install exact API client dependencies
+        run: npm ci --prefix packages/api-client
 
       - name: Install exact web dependencies
         run: npm ci --prefix apps/web
