@@ -210,7 +210,7 @@ services:
     logging: *json-logging
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.130.0
+    image: otel/opentelemetry-collector-contrib:0.158.0
     profiles: ["observability"]
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     environment:
@@ -234,7 +234,7 @@ services:
     logging: *json-logging
 
   prometheus:
-    image: prom/prometheus:v3.4.1
+    image: prom/prometheus:v3.13.2
     profiles: ["observability"]
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
