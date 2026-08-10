@@ -43,7 +43,7 @@ dev = [
   # Starlette TestClient prefers the next-generation client and warns when
   # falling back to the production httpx dependency.
   "httpx2>=2.7,<3",
-  "mypy>=1.14,<2",
+  "mypy>=2.3.0,<3",
   "ruff>=0.9,<1",
   "types-bleach>=6.2,<7",
   "types-Markdown>=3.5,<4",
