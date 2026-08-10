@@ -54,6 +54,20 @@ venv.bak/
 .env.*
 !.env.example
 
+# Local package credentials and private key material
+.npmrc
+.pypirc
+.netrc
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secret
+
 # Logs
 *.log
 logs/

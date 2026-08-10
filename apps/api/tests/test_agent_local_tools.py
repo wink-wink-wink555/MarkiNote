@@ -396,6 +396,23 @@ def test_html_extraction_and_language_prompt_are_deterministic() -> None:
     assert tools.get_system_prompt("unknown") == tools.get_system_prompt("zh-CN")
 
 
+def test_html_extraction_removes_script_with_whitespace_in_its_end_tag() -> None:
+    rendered = tools._extract_text_from_html(
+        "<html><body><main>Visible</main><script>hidden()</script ></body></html>"
+    )
+
+    assert "Visible" in rendered
+    assert "hidden" not in rendered
+
+
+def test_html_extraction_fails_closed_without_beautifulsoup() -> None:
+    with (
+        mock.patch.dict("sys.modules", {"bs4": None}),
+        pytest.raises(ImportError),
+    ):
+        tools._extract_text_from_html("<main>Visible</main><script>hidden()</script >")
+
+
 def test_web_search_uses_fallbacks_and_configured_proxy(
     tool_context: tuple[Path, BackupManager],
     monkeypatch: pytest.MonkeyPatch,
