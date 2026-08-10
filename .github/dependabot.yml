@@ -4,7 +4,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     groups:
       python-minor-and-patch:
         patterns: ["*"]
@@ -14,7 +14,7 @@ updates:
     directory: /apps/web
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     groups:
       web-minor-and-patch:
         patterns: ["*"]
@@ -24,7 +24,7 @@ updates:
     directory: /packages/api-client
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     groups:
       api-client-minor-and-patch:
         patterns: ["*"]
@@ -34,7 +34,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     groups:
       docker-minor-and-patch:
         patterns: ["*"]
@@ -44,7 +44,7 @@ updates:
     directory: /infra
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     groups:
       compose-minor-and-patch:
         patterns: ["*"]
@@ -54,7 +54,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 1
     groups:
       actions-minor-and-patch:
         patterns: ["*"]
