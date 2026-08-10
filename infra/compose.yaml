@@ -184,7 +184,7 @@ services:
     logging: *json-logging
 
   redis:
-    image: redis:7.4.5-alpine
+    image: redis:8.10.0-alpine
     profiles: ["redis"]
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
     volumes:
