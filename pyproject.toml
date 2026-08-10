@@ -49,7 +49,7 @@ dev = [
   "types-Markdown>=3.5,<4",
 ]
 postgres = [
-  "psycopg[binary]>=3.2,<4",
+  "psycopg[binary]>=3.3.4,<4",
 ]
 otel = [
   "opentelemetry-api>=1.29,<2",
