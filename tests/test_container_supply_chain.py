@@ -17,10 +17,12 @@ def test_python_project_build_backend_is_exactly_locked_and_offline() -> None:
         name, version = requirement.split("==", 1)
         assert f'name = "{name}"\nversion = "{version}"' in uv_lock
 
-    assert (
-        "FROM ghcr.io/astral-sh/uv:0.11.15@sha256:"
-        "e590846f4776907b254ac0f44b5b380347af5d90d668138ca7938d1b0c2f98d3 AS uv"
-        in dockerfile
+    assert re.search(
+        r"^FROM ghcr\.io/astral-sh/uv:"
+        r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+        r"@sha256:[0-9a-f]{64} AS uv$",
+        dockerfile,
+        re.MULTILINE,
     )
     assert "COPY --from=uv /uv /usr/local/bin/uv" in dockerfile
     assert "COPY pyproject.toml uv.lock README.md ./" in dockerfile
@@ -99,6 +101,13 @@ def test_web_dependencies_do_not_link_back_to_the_repository_root() -> None:
     assert '"markinote": "file:../.."' not in package
     assert '"markinote": "file:../.."' not in lock
     assert '"node_modules/markinote"' not in lock
+
+
+def test_dependabot_allows_only_one_open_update_per_ecosystem() -> None:
+    dependabot = (REPOSITORY_ROOT / ".github/dependabot.yml").read_text(encoding="utf-8")
+
+    assert dependabot.count("open-pull-requests-limit: 1") == 6
+    assert "open-pull-requests-limit: 3" not in dependabot
 
 
 def test_ci_executes_the_dynamic_docker_context_secret_probe() -> None:

@@ -60,6 +60,9 @@ The repository uses semantic versioning for released API and container artifacts
   that frozen lock, and Dependabot updates the native `uv` ecosystem.
 - Dependabot now groups compatible minor and patch updates, limits concurrent
   pull requests per ecosystem, and understands the Compose manifest directly.
+- Dependabot permits only one open pull request per ecosystem, keeping major
+  upgrades queued behind the grouped routine update instead of flooding the
+  repository with parallel branches.
 - CI exposes one stable `CI required` aggregate status so branch rules do not
   need to duplicate the complete job matrix.
 - Removed an unused Web dependency that linked `node_modules` back to the
@@ -78,6 +81,9 @@ The repository uses semantic versioning for released API and container artifacts
   used by CI.
 - Expanded Git ignore rules for package-manager credentials, private keys,
   certificates, keystores, and local secret files.
+- The container supply-chain contract now validates the uv builder's immutable
+  SemVer-plus-digest form without hard-coding one release, so Dependabot can
+  refresh that pinned tool image without weakening the pin.
 - The React application and gateway now provide the sole browser security policy; `script-src` remains self-only and no transitional page assets enter either image.
 - API structured logs now use an explicit metadata allowlist, avoid arbitrary argument interpolation, redact credential-shaped text, and omit exception messages and user payloads.
 - Problem/SSE responses, command journals, backup manifests, and compensation results use stable public errors instead of raw exception text or local paths.
