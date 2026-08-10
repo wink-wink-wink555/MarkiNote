@@ -158,7 +158,7 @@ services:
     logging: *json-logging
 
   postgres:
-    image: postgres:17.5-alpine
+    image: postgres:18.4-alpine
     profiles: ["postgres"]
     environment:
       POSTGRES_DB: ${MARKINOTE_POSTGRES_DB:-markinote}
