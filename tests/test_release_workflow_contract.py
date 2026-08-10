@@ -123,3 +123,24 @@ def test_ci_production_preflight_uses_and_negatively_tests_a_release_version() -
     )[0]
     assert "MARKINOTE_VERSION: v4.0.0" in step
     assert "if MARKINOTE_VERSION=local" in step
+
+
+def test_ci_exposes_one_stable_aggregate_required_status() -> None:
+    workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    required = workflow.split("\n  required:\n", 1)[1]
+
+    assert "name: CI required" in required
+    assert "if: always()" in required
+    assert "name: Require every CI job to succeed" in required
+    for job in (
+        "backend",
+        "windows-compatibility",
+        "frontend",
+        "contract",
+        "e2e",
+        "postgres-integration",
+        "image",
+        "security",
+    ):
+        assert f"      - {job}" in required
+        assert f"needs.{job}.result" in required

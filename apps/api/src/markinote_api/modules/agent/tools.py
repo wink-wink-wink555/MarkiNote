@@ -1063,39 +1063,29 @@ def _fetch_url(args, lib_dir, bm, gid, **extra):
 
 def _extract_text_from_html(html_content):
     """从 HTML 提取可读文本"""
-    try:
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
-        for tag in soup(['script', 'style', 'nav', 'footer', 'noscript', 'iframe', 'svg']):
-            tag.decompose()
+    # BeautifulSoup is a required runtime dependency. If it is unavailable,
+    # propagate ImportError instead of attempting to filter hostile HTML with
+    # regular expressions.
+    from bs4 import BeautifulSoup
 
-        title_tag = soup.find('title')
-        title = title_tag.get_text(strip=True) if title_tag else ''
+    soup = BeautifulSoup(html_content, 'html.parser')
+    for tag in soup(['script', 'style', 'nav', 'footer', 'noscript', 'iframe', 'svg']):
+        tag.decompose()
 
-        main = soup.find('main') or soup.find('article') or soup.find('body')
-        if not main:
-            main = soup
+    title_tag = soup.find('title')
+    title = title_tag.get_text(strip=True) if title_tag else ''
 
-        text = main.get_text(separator='\n')
-        lines = [line.strip() for line in text.split('\n')]
-        text = '\n'.join(line for line in lines if line)
+    main = soup.find('main') or soup.find('article') or soup.find('body')
+    if not main:
+        main = soup
 
-        if title:
-            text = f'标题: {title}\n\n{text}'
-        return text
-    except ImportError:
-        import html as html_mod
-        import re
-        text = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html_content, flags=re.I)
-        text = re.sub(r'<style[^>]*>[\s\S]*?</style>', '', text, flags=re.I)
-        text = re.sub(r'<!--[\s\S]*?-->', '', text)
-        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.I)
-        text = re.sub(r'</p>', '\n\n', text, flags=re.I)
-        text = re.sub(r'</div>', '\n', text, flags=re.I)
-        text = re.sub(r'<[^>]+>', '', text)
-        text = html_mod.unescape(text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
+    text = main.get_text(separator='\n')
+    lines = [line.strip() for line in text.split('\n')]
+    text = '\n'.join(line for line in lines if line)
+
+    if title:
+        text = f'标题: {title}\n\n{text}'
+    return text
 
 
 def _summarize_with_subagent(content, url, api_key, provider_id, model_id):

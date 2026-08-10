@@ -34,7 +34,6 @@
     "katex": "^0.16.22",
     "lucide-react": "^0.522.0",
     "marked": "^15.0.12",
-    "markinote": "file:../..",
     "mermaid": "^11.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

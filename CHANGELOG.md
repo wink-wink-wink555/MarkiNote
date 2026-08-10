@@ -8,7 +8,7 @@ The repository uses semantic versioning for released API and container artifacts
 > The repository has not yet created its first immutable release tag. The
 > entries below describe the `4.0.0` candidate and must stay unreleased until
 > the full release workflow, external approvals, and image digests exist.
-> The candidate does not yet have successful remote workflow or release evidence.
+> Pull-request CI is validation evidence, not immutable release evidence.
 > Local Chromium and WebKit validation does not stand in for a successful
 > remote Chromium/Firefox/WebKit matrix; Firefox could not launch reliably in
 > this Windows graphics environment.
@@ -55,10 +55,29 @@ The repository uses semantic versioning for released API and container artifacts
 - Conversation truncation now returns success only after its file rollback and conversation commit both succeed; an uncommitted Saga returns a stable `409` and the React client keeps its current history.
 - Trash restore now treats the payload move as its commit point: post-commit metadata cleanup failures are logged for maintenance but no longer report a false restore failure.
 - Python project builds use separately hash-locked build/runtime environments, offline no-build-isolation wheel construction, and a runtime image with Python packaging tools removed.
+- `uv.lock` is now the single committed Python dependency lock. Container builds
+  export temporary, hash-checked build and runtime requirements directly from
+  that frozen lock, and Dependabot updates the native `uv` ecosystem.
+- Dependabot now groups compatible minor and patch updates, limits concurrent
+  pull requests per ecosystem, and understands the Compose manifest directly.
+- CI exposes one stable `CI required` aggregate status so branch rules do not
+  need to duplicate the complete job matrix.
+- Removed an unused Web dependency that linked `node_modules` back to the
+  repository root and could make local filesystem tooling recurse indefinitely.
 
 ### Security
 
 - Added Trusted Host, Origin, rate/body limits, safe Markdown rendering, SSRF redirect/DNS/peer validation, secret redaction tests, dependency audits, CodeQL, Trivy, and SBOMs.
+- Conversation persistence now validates identifiers and proves the resolved
+  file remains directly beneath its configured root before every read, write,
+  or delete operation.
+- HTML extraction now fails closed when the maintained Beautiful Soup parser is
+  unavailable instead of falling back to a regular-expression tag filter.
+- Upgraded the gateway base to NGINX 1.30.4 on Alpine 3.24 and verified the
+  resulting image with the same high/critical, fixed-vulnerability Trivy gate
+  used by CI.
+- Expanded Git ignore rules for package-manager credentials, private keys,
+  certificates, keystores, and local secret files.
 - The React application and gateway now provide the sole browser security policy; `script-src` remains self-only and no transitional page assets enter either image.
 - API structured logs now use an explicit metadata allowlist, avoid arbitrary argument interpolation, redact credential-shaped text, and omit exception messages and user payloads.
 - Problem/SSE responses, command journals, backup manifests, and compensation results use stable public errors instead of raw exception text or local paths.

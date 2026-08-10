@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -28,7 +29,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from markinote_api.platform.io import atomic_write_json, resource_lock
-from markinote_api.platform.paths import validate_storage_id
+from markinote_api.platform.paths import PathValidationError, resolve_under_root, validate_storage_id
 
 EXPECTED_SCHEMA_REVISION = "20260718_0003"
 
@@ -64,8 +65,33 @@ class JsonConversationRepository(ConversationRepository):
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, conversation_id: str) -> Path:
-        validate_storage_id(conversation_id, "conversation id")
-        return self.root / f"{conversation_id}.json"
+        # basename is redundant with the strict storage-ID validator, but also
+        # makes the path sanitization boundary explicit to static analyzers.
+        safe_id = os.path.basename(
+            validate_storage_id(conversation_id, "conversation id")
+        )
+        filename = f"{safe_id}.json"
+        path, normalized = resolve_under_root(self.root, filename, allow_root=False)
+        canonical_path = Path(os.path.realpath(path))
+        canonical_root = Path(os.path.realpath(self.root))
+
+        try:
+            contained = os.path.commonpath((canonical_root, canonical_path)) == str(
+                canonical_root
+            )
+        except ValueError:
+            contained = False
+
+        # Conversation records are always direct children of ``self.root``.
+        # Keeping this boundary check next to the filesystem operations makes
+        # the containment guarantee explicit even if path helpers evolve.
+        if (
+            normalized != filename
+            or not contained
+            or canonical_path.parent != canonical_root
+        ):
+            raise PathValidationError("conversation path leaves its storage root")
+        return canonical_path
 
     def list(self) -> list[ConversationData]:
         values, _ = self.scan()

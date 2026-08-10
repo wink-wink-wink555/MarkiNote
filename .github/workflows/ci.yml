@@ -57,27 +57,23 @@ jobs:
       - name: Install backend and quality tools
         run: uv sync --frozen --all-extras
 
-      - name: Reject production dependency export drift
+      - name: Validate frozen production dependency export
         shell: bash
         run: |
           mkdir -p .artifacts
           uv export --frozen --no-dev --extra postgres --extra otel \
             --no-emit-project \
             --output-file .artifacts/requirements.lock.txt
-          # uv records the output filename in its two-line generated header.
-          # Compare the resolved body so a renamed temporary file is harmless.
-          diff --unified \
-            <(tail -n +3 requirements.lock.txt) \
-            <(tail -n +3 .artifacts/requirements.lock.txt)
+          grep --fixed-strings --quiet -- '--hash=sha256:' \
+            .artifacts/requirements.lock.txt
 
-      - name: Reject Python build-backend lock drift
+      - name: Validate frozen Python build-backend export
         shell: bash
         run: |
           uv export --frozen --only-group build --no-emit-project \
             --output-file .artifacts/requirements.build.lock.txt
-          diff --unified \
-            <(tail -n +3 requirements.build.lock.txt) \
-            <(tail -n +3 .artifacts/requirements.build.lock.txt)
+          grep --fixed-strings --quiet -- '--hash=sha256:' \
+            .artifacts/requirements.build.lock.txt
 
       - name: Ruff
         run: uv run --frozen ruff check .
@@ -829,3 +825,45 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+  required:
+    name: CI required
+    if: always()
+    needs:
+      - backend
+      - windows-compatibility
+      - frontend
+      - contract
+      - e2e
+      - postgres-integration
+      - image
+      - security
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BACKEND_RESULT: ${{ needs.backend.result }}
+      WINDOWS_RESULT: ${{ needs.windows-compatibility.result }}
+      FRONTEND_RESULT: ${{ needs.frontend.result }}
+      CONTRACT_RESULT: ${{ needs.contract.result }}
+      E2E_RESULT: ${{ needs.e2e.result }}
+      POSTGRES_RESULT: ${{ needs.postgres-integration.result }}
+      IMAGE_RESULT: ${{ needs.image.result }}
+      SECURITY_RESULT: ${{ needs.security.result }}
+    steps:
+      - name: Require every CI job to succeed
+        shell: bash
+        run: |
+          for result in \
+            "$BACKEND_RESULT" \
+            "$WINDOWS_RESULT" \
+            "$FRONTEND_RESULT" \
+            "$CONTRACT_RESULT" \
+            "$E2E_RESULT" \
+            "$POSTGRES_RESULT" \
+            "$IMAGE_RESULT" \
+            "$SECURITY_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A required CI job finished with result: $result" >&2
+              exit 1
+            fi
+          done

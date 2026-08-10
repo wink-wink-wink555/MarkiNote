@@ -4,8 +4,6 @@
 !.dockerignore
 !pyproject.toml
 !alembic.ini
-!requirements.build.lock.txt
-!requirements.lock.txt
 !uv.lock
 !README.md
 !LICENSE

@@ -9,17 +9,22 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 def test_python_project_build_backend_is_exactly_locked_and_offline() -> None:
     pyproject = (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     dockerfile = (REPOSITORY_ROOT / "Dockerfile.api").read_text(encoding="utf-8")
-    build_lock = (REPOSITORY_ROOT / "requirements.build.lock.txt").read_text(
-        encoding="utf-8"
-    )
+    uv_lock = (REPOSITORY_ROOT / "uv.lock").read_text(encoding="utf-8")
 
     expected = ("setuptools==83.0.0", "wheel==0.47.0")
     for requirement in expected:
         assert pyproject.count(f'"{requirement}"') == 2
-        block = build_lock.split(requirement, 1)[1].split("\n\n", 1)[0]
-        assert len(re.findall(r"--hash=sha256:[0-9a-f]{64}", block)) >= 2
+        name, version = requirement.split("==", 1)
+        assert f'name = "{name}"\nversion = "{version}"' in uv_lock
 
-    assert "COPY pyproject.toml requirements.build.lock.txt requirements.lock.txt" in dockerfile
+    assert (
+        "FROM ghcr.io/astral-sh/uv:0.11.15@sha256:"
+        "e590846f4776907b254ac0f44b5b380347af5d90d668138ca7938d1b0c2f98d3 AS uv"
+        in dockerfile
+    )
+    assert "COPY --from=uv /uv /usr/local/bin/uv" in dockerfile
+    assert "COPY pyproject.toml uv.lock README.md ./" in dockerfile
+    assert dockerfile.count("uv export --frozen") == 2
     assert dockerfile.count("--require-hashes") == 2
     assert dockerfile.count("--only-binary=:all:") == 2
     assert "RUN --network=none" in dockerfile
@@ -56,12 +61,44 @@ def test_docker_context_secret_exclusions_follow_every_allowlist_rule() -> None:
         assert pattern in lines
         assert lines.index(pattern) > last_allowlist
 
-    assert "!requirements.build.lock.txt" in lines
+    assert "!uv.lock" in lines
 
     image_smoke = (REPOSITORY_ROOT / "infra/ci/image-content-smoke.py").read_text(
         encoding="utf-8"
     )
     assert 'path.name.endswith(".egg-info")' in image_smoke
+
+
+def test_git_never_offers_local_credentials_or_private_keys_for_commit() -> None:
+    lines = {
+        line.strip()
+        for line in (REPOSITORY_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+    assert {
+        ".npmrc",
+        ".pypirc",
+        ".netrc",
+        "*.pem",
+        "*.key",
+        "*.crt",
+        "*.cer",
+        "*.p12",
+        "*.pfx",
+        "*.jks",
+        "*.keystore",
+        "*.secret",
+    } <= lines
+
+
+def test_web_dependencies_do_not_link_back_to_the_repository_root() -> None:
+    package = (REPOSITORY_ROOT / "apps/web/package.json").read_text(encoding="utf-8")
+    lock = (REPOSITORY_ROOT / "apps/web/package-lock.json").read_text(encoding="utf-8")
+
+    assert '"markinote": "file:../.."' not in package
+    assert '"markinote": "file:../.."' not in lock
+    assert '"node_modules/markinote"' not in lock
 
 
 def test_ci_executes_the_dynamic_docker_context_secret_probe() -> None:
