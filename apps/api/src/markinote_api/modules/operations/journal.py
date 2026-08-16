@@ -309,12 +309,14 @@ class SqlCommandJournal(CommandJournal):
         self,
         database: Database,
         *,
+        user_id: str | None = None,
         lease_duration: timedelta = timedelta(minutes=5),
         now: Callable[[], datetime] | None = None,
     ):
         if lease_duration <= timedelta(0):
             raise ValueError("lease_duration must be positive")
         self.database = database
+        self.user_id = user_id
         self.lease_duration = lease_duration
         self._now = now or (lambda: datetime.now(UTC))
         self._owned_attempts: ContextVar[dict[str, int] | None] = ContextVar(
@@ -336,6 +338,7 @@ class SqlCommandJournal(CommandJournal):
                 session.add(
                     ToolCommandRecord(
                         command_id=command_id,
+                        user_id=self.user_id,
                         run_id=run_id,
                         conversation_id=conversation_id,
                         tool_name=tool_name,
@@ -351,7 +354,12 @@ class SqlCommandJournal(CommandJournal):
             return True, None
         except IntegrityError:
             with self.database.session() as session, session.begin():
-                existing = session.get(ToolCommandRecord, command_id)
+                existing = session.scalar(
+                    select(ToolCommandRecord).where(
+                        ToolCommandRecord.command_id == command_id,
+                        ToolCommandRecord.user_id == self.user_id,
+                    )
+                )
                 if existing is None:
                     raise CommandJournalCorruptionError(
                         "command uniqueness conflict has no durable record"
@@ -366,6 +374,7 @@ class SqlCommandJournal(CommandJournal):
                     update(ToolCommandRecord)
                     .where(
                         ToolCommandRecord.command_id == command_id,
+                        ToolCommandRecord.user_id == self.user_id,
                         ToolCommandRecord.run_id == run_id,
                         ToolCommandRecord.conversation_id == conversation_id,
                         ToolCommandRecord.tool_name == tool_name,
@@ -393,10 +402,13 @@ class SqlCommandJournal(CommandJournal):
                 # a duplicate observes that durable terminal result instead of
                 # incorrectly reporting that the command is still running.
                 session.expire_all()
-                durable = session.get(
-                    ToolCommandRecord,
-                    command_id,
-                    populate_existing=True,
+                durable = session.scalar(
+                    select(ToolCommandRecord)
+                    .where(
+                        ToolCommandRecord.command_id == command_id,
+                        ToolCommandRecord.user_id == self.user_id,
+                    )
+                    .execution_options(populate_existing=True)
                 )
                 if durable is None:
                     raise CommandJournalCorruptionError(
@@ -418,7 +430,12 @@ class SqlCommandJournal(CommandJournal):
 
     def inspect(self, command_id: str) -> dict[str, Any] | None:
         with self.database.session() as session:
-            record = session.get(ToolCommandRecord, command_id)
+            record = session.scalar(
+                select(ToolCommandRecord).where(
+                    ToolCommandRecord.command_id == command_id,
+                    ToolCommandRecord.user_id == self.user_id,
+                )
+            )
             if record is None:
                 return None
             return {
@@ -455,6 +472,7 @@ class SqlCommandJournal(CommandJournal):
                     select(ToolCommandRecord.command_id, ToolCommandRecord.result)
                     .where(
                         ToolCommandRecord.state.in_(("completed", "failed")),
+                        ToolCommandRecord.user_id == self.user_id,
                         ToolCommandRecord.completed_at.is_not(None),
                         ToolCommandRecord.completed_at < cutoff,
                     )
@@ -494,6 +512,7 @@ class SqlCommandJournal(CommandJournal):
             result = session.execute(
                 delete(ToolCommandRecord).where(
                     ToolCommandRecord.command_id.in_(command_ids),
+                    ToolCommandRecord.user_id == self.user_id,
                     ToolCommandRecord.state.in_(("completed", "failed")),
                     ToolCommandRecord.completed_at.is_not(None),
                     ToolCommandRecord.completed_at < cutoff,
@@ -514,6 +533,7 @@ class SqlCommandJournal(CommandJournal):
         retained_command = exists(
             select(ToolCommandRecord.command_id).where(
                 ToolCommandRecord.command_id == OperationAuditRecord.command_id
+                , ToolCommandRecord.user_id == self.user_id
             )
         )
         with self.database.session() as session:
@@ -522,6 +542,7 @@ class SqlCommandJournal(CommandJournal):
                     select(OperationAuditRecord.id)
                     .where(
                         OperationAuditRecord.created_at < cutoff,
+                        OperationAuditRecord.user_id == self.user_id,
                         ~retained_command,
                     )
                     .order_by(OperationAuditRecord.created_at, OperationAuditRecord.id)
@@ -537,12 +558,14 @@ class SqlCommandJournal(CommandJournal):
         retained_command = exists(
             select(ToolCommandRecord.command_id).where(
                 ToolCommandRecord.command_id == OperationAuditRecord.command_id
+                , ToolCommandRecord.user_id == self.user_id
             )
         )
         with self.database.session() as session, session.begin():
             result = session.execute(
                 delete(OperationAuditRecord).where(
                     OperationAuditRecord.id.in_(audit_ids),
+                    OperationAuditRecord.user_id == self.user_id,
                     OperationAuditRecord.created_at < cutoff,
                     ~retained_command,
                 )
@@ -558,6 +581,7 @@ class SqlCommandJournal(CommandJournal):
                 update(ToolCommandRecord)
                 .where(
                     ToolCommandRecord.command_id == command_id,
+                    ToolCommandRecord.user_id == self.user_id,
                     ToolCommandRecord.state == "running",
                     ToolCommandRecord.attempt == owned_attempt,
                 )
@@ -618,6 +642,7 @@ class SqlCommandJournal(CommandJournal):
         with self.database.session() as session, session.begin():
             session.add(
                 OperationAuditRecord(
+                    user_id=self.user_id,
                     request_id=str(entry.get("request_id", ""))[:128],
                     conversation_id=entry.get("conversation_id"),
                     command_id=entry.get("command_id"),

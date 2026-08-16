@@ -9,16 +9,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from markinote_api.modules.agent.service import AgentService
 from markinote_api.modules.conversations.service import ConversationService
 from markinote_api.platform.errors import Problem
+from markinote_api.platform.tenancy import services_for_request
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
 
 def get_service(request: Request) -> ConversationService:
-    return request.app.state.conversation_service
+    return services_for_request(request).conversation_service
 
 
 def get_agent_service(request: Request) -> AgentService:
-    return request.app.state.agent_service
+    return services_for_request(request).agent_service
 
 
 class ConversationSummary(BaseModel):

@@ -38,14 +38,24 @@ class Settings(BaseSettings):
     conversations_folder: Path = REPOSITORY_ROOT / ".ai_conversations"
     backups_folder: Path = REPOSITORY_ROOT / ".ai_backups"
     trash_folder: Path = REPOSITORY_ROOT / ".trash"
-
     conversation_backend: Literal["json", "database"] = "json"
     database_url: str = f"sqlite:///{(REPOSITORY_ROOT / '.markinote.db').as_posix()}"
     # Schema ownership belongs to Alembic. Tests may opt in to ephemeral creation.
     auto_create_database: bool = False
 
+    auth_mode: Literal["access_token", "accounts"] = "access_token"
+    registration_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65_535)
+    smtp_security: Literal["starttls", "tls", "none"] = "starttls"
+    smtp_username: str = ""
+    smtp_password: SecretStr | None = None
+    smtp_sender_email: str = ""
+    smtp_sender_name: str = "MarkiNote"
+    email_verification_ttl_seconds: int = Field(default=30 * 60, ge=300, le=24 * 60 * 60)
     access_token: SecretStr | None = None
     secret_key: SecretStr | None = None
+    credential_encryption_key: SecretStr | None = None
     session_cookie_name: str = "markinote_access"
     session_max_age_seconds: int = 8 * 60 * 60
     public_origin: str = ""
@@ -57,7 +67,7 @@ class Settings(BaseSettings):
     max_request_bytes: int = 16 * 1024 * 1024
     max_document_bytes: int = 2 * 1024 * 1024
     max_preview_bytes: int = 2 * 1024 * 1024
-    max_library_bytes: int = 1024 * 1024 * 1024
+    max_library_bytes: int = 30 * 1024 * 1024
     trash_max_items: int = 500
     trash_max_bytes: int = 1024 * 1024 * 1024
     allowed_extensions: set[str] = Field(default_factory=lambda: {"md", "markdown", "txt"})
@@ -80,6 +90,8 @@ class Settings(BaseSettings):
     backup_max_bytes: int = 256 * 1024 * 1024
     ai_generate_titles: bool = False
     ai_api_key: SecretStr | None = None
+    finance_mcp_url: str = ""
+    finance_mcp_timeout_seconds: int = Field(default=45, ge=1, le=300)
     # CI-only upstream fixture. Keeping the override in typed configuration,
     # rather than mutating the provider registry, makes the production guard
     # auditable and prevents a smoke test from reaching a real provider.
@@ -110,6 +122,8 @@ class Settings(BaseSettings):
         "max_library_bytes",
         "trash_max_items",
         "trash_max_bytes",
+        "finance_mcp_timeout_seconds",
+        "email_verification_ttl_seconds",
     )
     @classmethod
     def positive_limit(cls, value: int) -> int:
@@ -159,6 +173,36 @@ class Settings(BaseSettings):
                 "agent run startup reconciliation requires an explicit single-writer "
                 "acknowledgement"
             )
+        if self.auth_mode == "accounts":
+            if self.conversation_backend != "database":
+                raise ValueError("account mode requires the database conversation backend")
+            if self.agent_run_reconcile_on_startup:
+                raise ValueError("account mode does not support global startup reconciliation")
+            if self.environment == "production" and (
+                not self.smtp_host.strip() or "@" not in self.smtp_sender_email
+            ):
+                raise ValueError("production account mode requires SMTP and a sender email")
+        if self.finance_mcp_url:
+            finance_origin = urlsplit(self.finance_mcp_url)
+            try:
+                finance_port = finance_origin.port
+            except ValueError as error:
+                raise ValueError("finance_mcp_url must contain a valid TCP port") from error
+            is_loopback_http = (
+                finance_origin.scheme == "http"
+                and finance_origin.hostname in {"127.0.0.1", "localhost", "::1"}
+            )
+            if finance_origin.scheme != "https" and not is_loopback_http:
+                raise ValueError("finance_mcp_url must use HTTPS unless it targets loopback")
+            if (
+                not finance_origin.hostname
+                or finance_origin.username
+                or finance_origin.password
+                or finance_origin.query
+                or finance_origin.fragment
+                or (finance_port is not None and not 1 <= finance_port <= 65535)
+            ):
+                raise ValueError("finance_mcp_url must be an absolute URL without credentials")
         if self.ai_provider_fixture_url:
             fixture = urlsplit(self.ai_provider_fixture_url)
             if self.environment != "test":
@@ -183,11 +227,13 @@ class Settings(BaseSettings):
             return self
         token = self.access_token.get_secret_value() if self.access_token else ""
         secret = self.secret_key.get_secret_value() if self.secret_key else ""
-        if len(token) < 24:
+        if self.auth_mode == "access_token" and len(token) < 24:
             raise ValueError("production requires an access token of at least 24 characters")
         if len(secret) < 32:
             raise ValueError("production requires a distinct secret key of at least 32 characters")
-        if hmac_compare(token, secret):
+        if self.auth_mode == "accounts" and not self.credential_encryption_key:
+            raise ValueError("production account mode requires a credential encryption key")
+        if token and hmac_compare(token, secret):
             raise ValueError("production access token and secret key must be different")
         origin = urlsplit(self.public_origin)
         try:

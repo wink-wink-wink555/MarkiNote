@@ -18,6 +18,7 @@ from markinote_api.modules.agent.schemas import (
     ValidateKeyResponse,
 )
 from markinote_api.modules.agent.service import AgentService
+from markinote_api.platform.tenancy import services_for_request
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 
@@ -44,16 +45,19 @@ class _ClosingStreamingResponse(StreamingResponse):
 
 
 def get_service(request: Request) -> AgentService:
-    return request.app.state.agent_service
+    return services_for_request(request).agent_service
 
 
 @router.get("/providers", response_model=ProvidersResponse)
 def providers(request: Request) -> dict[str, object]:
+    service = services_for_request(request).agent_service
     return {
         "providers": get_providers_info(),
         "limits": {"max_attachment_files": request.app.state.settings.max_attachment_files},
         "serverKeyConfigured": bool(
-            request.app.state.settings.ai_api_key
+            service.credential_loader("deepseek_api_key")
+            if service.credential_loader
+            else request.app.state.settings.ai_api_key
             and request.app.state.settings.ai_api_key.get_secret_value()
         ),
     }

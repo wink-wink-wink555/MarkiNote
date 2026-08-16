@@ -25,7 +25,7 @@ The AI assistant is an agent rather than a chat-only sidebar: it can inspect the
 <a id="project-status"></a>
 
 > [!IMPORTANT]
-> **MarkiNote 4.0.0 is Beta software.** It is suitable for open-source review, single-machine self-hosted evaluation, and feedback. It is not yet a stable production release, a multi-user account system, or a highly available service. Read [Known limitations](#known-limitations) before exposing it beyond a trusted machine.
+> **MarkiNote 4.0.0 is Beta software.** It is suitable for open-source review, single-machine self-hosted evaluation, and feedback. It includes a database-backed multi-account mode, but it is not yet a stable production release, an RBAC/OIDC platform, or a highly available service. Read [Known limitations](#known-limitations) before exposing it beyond a trusted machine.
 
 The original Flask-based lightweight edition is preserved on the [`lite`](https://github.com/wink-wink-wink555/MarkiNote/tree/lite) branch. The `main` branch contains this full React/FastAPI/Docker edition.
 
@@ -36,11 +36,12 @@ The original Flask-based lightweight edition is preserved on the [`lite`](https:
 | Web | React 19, TypeScript, Vite, CodeMirror 6, TanStack Query |
 | API | Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic |
 | Entry point | NGINX serves the SPA and proxies same-origin HTTP/SSE traffic |
-| Documents | Markdown, Markdown-compatible text, and plain text on LocalFS |
-| Conversations | JSON by default; optional SQLite/PostgreSQL repository adapter |
-| AI | DeepSeek and Kimi allowlists, streaming SSE, 11 bounded tools |
+| Documents | LocalFS in legacy mode; tenant-scoped SQL storage in account mode |
+| Accounts | Email verification, username/email login, isolated virtual roots, encrypted per-user credentials |
+| Conversations | JSON by default; tenant-scoped SQLite/PostgreSQL in account mode |
+| AI | DeepSeek and Kimi allowlists, streaming SSE, guarded file tools, and optional FinanceMCP tools |
 | Operations | Docker Compose, optional metrics/tracing/database profiles, hardened production overlay |
-| Intended topology | Single tenant, one API container, one Uvicorn worker, one document writer |
+| Intended topology | One API container and Uvicorn worker; single-tenant or database-backed multi-account mode |
 
 <a id="implemented-features"></a>
 
@@ -60,6 +61,8 @@ In the FinNote use case, the two systems collaborate through an HTTP / MCP servi
 
 As a result, MarkiNote can be used not only as a general-purpose self-hosted Markdown workspace and AI Agent document operating system, but also as the intelligent research workspace of FinNote, connecting real-time financial data, AI analysis, and long-term document asset management within a unified workflow.
 
+When `MARKINOTE_FINANCE_MCP_URL` is configured, FinanceMCP's available allowlisted tools are registered with the MarkiNote agent automatically. Each account supplies its own Tushare/Qveris credentials, and the complete FinanceMCP business result is retained for the model and conversation record without an application-level item-count or response-byte truncation. Browser-facing tool cards remain bounded independently as a safe preview.
+
 ## 🎯 Implemented features
 
 | Capability | What is implemented | Current boundary |
@@ -71,6 +74,8 @@ As a result, MarkiNote can be used not only as a general-purpose self-hosted Mar
 | Internationalization | Chinese, English, French, and Japanese UI; light/dark themes; responsive desktop/mobile layouts | Product documentation is maintained in English and Simplified Chinese |
 | AI chat | Versioned streaming events, conversation history, cancellation, current-document context, and attachments | Real provider availability depends on the account, region, balance, and network |
 | AI actions | 11 tools, write opt-in, per-resource authorization, exact one-time approvals, before-images, audit records, and single-operation rollback | There is no atomic whole-group rollback across multiple files |
+| Accounts | Email registration/verification, username or email login, HttpOnly sessions, encrypted integration credentials, isolated database workspaces | No OIDC, RBAC, organization sharing, or HA |
+| Finance | Optional default FinanceMCP discovery/invocation with per-account Tushare and Qveris credentials | Requires an operator-configured FinanceMCP endpoint and user-supplied upstream credentials |
 | Platform | RFC 9457-style errors, request IDs, liveness/readiness, Prometheus metrics, optional OpenTelemetry, deterministic OpenAPI generation | Readiness is a basic runtime check, not a complete provider/data/disaster-recovery proof |
 
 Sidebar search filters names and paths. Full-text document search is available to the agent through `search_files`.
@@ -173,11 +178,14 @@ The importer accepts `.md`, `.markdown`, and `.txt`, checks paths and name confl
 
 <details><summary><strong>Storage and concurrency model</strong></summary>
 
-- Markdown bodies always remain on LocalFS, including when the PostgreSQL profile is enabled.
-- Writes use path validation, quotas, atomic replacement, content versions, and process-local resource locks.
+- In backwards-compatible `access_token` mode, Markdown bodies remain on LocalFS, including when the PostgreSQL conversation profile is enabled.
+- In `accounts` mode, SQL is the sole source of truth for documents, conversations, command/audit/run journals, operation snapshots, and encrypted credentials. No JSON file or cache is authoritative user storage.
+- Every account receives an independent virtual root. Paths, quota accounting, conversations, operations, and integration credentials are filtered by the authenticated account ID; identical paths may safely exist in different workspaces.
+- A new account receives `Getting Started/Welcome.md` and `Getting Started/FinanceMCP.md`. The default live-document quota is **30 MiB per account** (`MARKINOTE_MAX_LIBRARY_BYTES=31457280`).
+- Writes use path validation, per-tenant quotas, content versions, database transactions in account mode, and process-local resource locks.
 - The supported topology is exactly one API writer. Do not add Uvicorn workers or API replicas merely because PostgreSQL is enabled.
 - The default `MARKINOTE_CONVERSATION_BACKEND=json` stores conversations and journals as JSON. The configured database URL is not opened in this profile.
-- `MARKINOTE_CONVERSATION_BACKEND=database` activates SQLAlchemy storage for conversations, operation journals, and agent-run journals. It may target SQLite for local work or PostgreSQL for the optional profile.
+- `MARKINOTE_AUTH_MODE=accounts` requires `MARKINOTE_CONVERSATION_BACKEND=database`; it may target SQLite for a single host or PostgreSQL for the optional profile.
 - Redis is reserved infrastructure. It is not a cache, queue, lock service, or core request dependency in this release.
 
 </details>
@@ -209,8 +217,9 @@ These models are called with thinking disabled to keep the current multi-step to
 
 ### Keys, privacy, and approvals
 
-- A key entered in the Web UI lives only in the current page's memory. Legacy MarkiNote local-storage key entries are removed, and a refresh or close clears the in-memory value.
-- Provider/model preferences may persist, but the key does not. `MARKINOTE_AI_API_KEY` is one optional global server-side fallback, so it must match the selected provider. In the current Compose baseline it is an environment variable visible to Docker host/container administrators; production operators should inject it through an external secret manager or leave it empty.
+- In `access_token` mode, a key entered in the Web UI lives only in the current page's memory. Legacy MarkiNote local-storage key entries are removed, and a refresh or close clears the in-memory value.
+- In `accounts` mode, users can store or replace DeepSeek, Tushare, and Qveris credentials from Settings. Values are encrypted with `MARKINOTE_CREDENTIAL_ENCRYPTION_KEY`, scoped by account ID, never returned to the browser, and persisted in the database rather than JSON/local storage.
+- `MARKINOTE_AI_API_KEY` remains an optional global server-side fallback for legacy/single-tenant deployments. Production operators should prefer account credentials or an external secret manager.
 - Messages, selected documents, attachments, and fetched-page summaries are sent to the chosen external provider. Do not submit content that the provider is not authorized to process.
 - Long-page summarization and optional automatic title generation make additional provider requests and may incur additional cost.
 - AI write access starts **off** for new and restored conversations.
@@ -301,8 +310,12 @@ Copy `.env.example` to `.env` for Compose. Pydantic also reads `.env.local` for 
 | `MARKINOTE_HTTP_BIND` | `127.0.0.1` | Host interface published by the gateway |
 | `MARKINOTE_HTTP_PORT` | `8080` | Host gateway port |
 | `MARKINOTE_ENVIRONMENT` | `development` | `development`, `test`, or fail-closed `production` validation |
+| `MARKINOTE_AUTH_MODE` | `access_token` | `access_token` or database-backed `accounts` authentication |
+| `MARKINOTE_REGISTRATION_ENABLED` | `false` | Enables public email registration in account mode |
 | `MARKINOTE_ACCESS_TOKEN` | empty | Single-tenant deployment token; required outside trusted loopback use |
 | `MARKINOTE_SECRET_KEY` | empty | Signs the 8-hour HttpOnly access cookie; must differ from the token |
+| `MARKINOTE_CREDENTIAL_ENCRYPTION_KEY` | empty | Fernet key required by production account mode; never commit it |
+| `MARKINOTE_SMTP_*` | empty / port 587 | Verification-email transport and sender settings |
 | `MARKINOTE_PUBLIC_ORIGIN` | empty | Canonical HTTPS origin required in production |
 | `MARKINOTE_TRUSTED_HOSTS` | loopback, `testserver`, `api` | JSON array of hostnames; no schemes, paths, or ports |
 | `MARKINOTE_TRUSTED_ORIGINS` | `[]` | Additional accepted write-request origins; this is not a CORS switch |
@@ -321,7 +334,7 @@ Copy `.env.example` to `.env` for Compose. Pydantic also reads `.env.local` for 
 | `MARKINOTE_MAX_REQUEST_BYTES` | 16 MiB | Whole request limit |
 | `MARKINOTE_MAX_DOCUMENT_BYTES` | 2 MiB | Individual document limit |
 | `MARKINOTE_MAX_PREVIEW_BYTES` | 2 MiB | Server preview limit |
-| `MARKINOTE_MAX_LIBRARY_BYTES` | 1 GiB | Live document library quota |
+| `MARKINOTE_MAX_LIBRARY_BYTES` | 30 MiB | Live document quota; enforced separately for every account |
 | `MARKINOTE_TRASH_MAX_ITEMS` | 500 | Retained trash item count |
 | `MARKINOTE_TRASH_MAX_BYTES` | 1 GiB | Trash byte budget |
 | `MARKINOTE_BACKUP_MAX_GROUPS` | 100 | Normal AI backup group count |
@@ -332,6 +345,8 @@ Copy `.env.example` to `.env` for Compose. Pydantic also reads `.env.local` for 
 | Variable | Compose default | Meaning |
 |---|---:|---|
 | `MARKINOTE_AI_API_KEY` | empty | Optional single server-side provider credential |
+| `MARKINOTE_FINANCE_MCP_URL` | empty | Loopback HTTP or HTTPS MCP endpoint whose allowlisted finance tools are registered automatically |
+| `MARKINOTE_FINANCE_MCP_TIMEOUT_SECONDS` | `45` | FinanceMCP request timeout; not a business-result size/item cap |
 | `MARKINOTE_AI_GENERATE_TITLES` | `false` | Adds a provider request when automatic conversation titles are enabled |
 | `MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP` | `false` | Production overlay enables bounded stale-run reconciliation |
 | `MARKINOTE_AGENT_RUN_SINGLE_WRITER` | `false` | Required acknowledgement before startup reconciliation may run |
@@ -347,6 +362,33 @@ The example environment exposes positive, cross-validated limits for provider fr
 Current effective defaults also limit a message to 32 Ki characters, attachments to five files / 256 KiB each / 768 KiB total, and combined context to 120 Ki characters. Those latter settings are not forwarded by the baseline Compose file; changing similarly named host variables alone will not alter the container until the Compose mapping is updated and tested.
 
 </details>
+
+### Database account mode
+
+Set the following through the deployment secret/configuration system; never commit real keys or passwords:
+
+```dotenv
+MARKINOTE_AUTH_MODE=accounts
+MARKINOTE_REGISTRATION_ENABLED=true
+MARKINOTE_CONVERSATION_BACKEND=database
+MARKINOTE_AUTO_CREATE_DATABASE=false
+MARKINOTE_DATABASE_URL=sqlite:////var/lib/markinote/markinote.db
+MARKINOTE_MAX_LIBRARY_BYTES=31457280
+MARKINOTE_CREDENTIAL_ENCRYPTION_KEY=<fernet-key>
+MARKINOTE_SMTP_HOST=<smtp-host>
+MARKINOTE_SMTP_PORT=587
+MARKINOTE_SMTP_SECURITY=starttls
+MARKINOTE_SMTP_SENDER_EMAIL=noreply@example.com
+MARKINOTE_FINANCE_MCP_URL=http://127.0.0.1:3000/mcp
+```
+
+Run `uv run alembic upgrade head` before starting the API. Registration sends a one-time verification link and then allows login by username or email. To create one operator-approved bootstrap account without email delivery, inject `MARKINOTE_BOOTSTRAP_EMAIL`, `MARKINOTE_BOOTSTRAP_USERNAME`, and `MARKINOTE_BOOTSTRAP_PASSWORD` (plus optional `MARKINOTE_BOOTSTRAP_DEEPSEEK_API_KEY`, `MARKINOTE_BOOTSTRAP_TUSHARE_TOKEN`, and `MARKINOTE_BOOTSTRAP_QVERIS_API_KEY`) for one process invocation:
+
+```bash
+uv run python apps/api/scripts/provision_account.py
+```
+
+The script is idempotent for an existing email, verifies the account, creates the default workspace, and encrypts supplied credentials in SQL. It never prints secret values.
 
 ## 🧑‍💻 Native development
 
@@ -559,10 +601,10 @@ Inspect exit codes, OOM events, read-only filesystem writes, UID 10001 volume pe
 
 ### Operational boundaries
 
-- Single tenant and single writer only; no accounts, OIDC, RBAC, tenant isolation, or HA.
-- PostgreSQL does not make the LocalFS document store multi-writer safe; Redis is not on the request path.
+- Account mode provides tenant isolation but not OIDC, RBAC, organization sharing, or HA.
+- The supported deployment remains one API writer. PostgreSQL does not make legacy LocalFS mode multi-writer safe; Redis is not on the request path.
 - Rollback is one explicit operation, not an atomic multi-file transaction.
-- Corrupt JSON audit records do not yet have an automated quarantine/repair workflow.
+- Legacy JSON audit records do not yet have an automated quarantine/repair workflow; account mode stores audit data in SQL.
 - Readiness does not scan every record, provider, backup, or disaster-recovery path.
 - The PowerShell importer can leave a partially completed batch after an upstream failure.
 - The maximum AI stream/lease and gateway SSE timeout are different boundaries; logs are required to distinguish a slow provider from a gateway interruption.

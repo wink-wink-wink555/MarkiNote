@@ -22,6 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     create_engine,
     delete,
+    event,
     func,
     inspect,
     select,
@@ -31,7 +32,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, rela
 from markinote_api.platform.io import atomic_write_json, resource_lock
 from markinote_api.platform.paths import PathValidationError, resolve_under_root, validate_storage_id
 
-EXPECTED_SCHEMA_REVISION = "20260718_0003"
+EXPECTED_SCHEMA_REVISION = "20260817_0004"
 
 ConversationData = dict[str, Any]
 
@@ -170,6 +171,7 @@ class ConversationRecord(Base):
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
@@ -202,6 +204,7 @@ class ToolCommandRecord(Base):
     __tablename__ = "tool_commands"
 
     command_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     run_id: Mapped[str] = mapped_column(String(96), nullable=False, index=True)
     conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -217,6 +220,7 @@ class OperationAuditRecord(Base):
     __tablename__ = "operation_audit"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     request_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     command_id: Mapped[str | None] = mapped_column(String(96), nullable=True, index=True)
@@ -242,6 +246,7 @@ class AgentRunRecord(Base):
 
     run_id: Mapped[str] = mapped_column(String(96), primary_key=True)
     request_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     provider: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -260,6 +265,14 @@ class Database:
     def __init__(self, url: str, *, create_schema: bool = False):
         connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
         self.engine = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+        if url.startswith("sqlite"):
+            @event.listens_for(self.engine, "connect")
+            def _sqlite_pragmas(dbapi_connection, _connection_record) -> None:
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys = ON")
+                cursor.execute("PRAGMA journal_mode = WAL")
+                cursor.execute("PRAGMA busy_timeout = 10000")
+                cursor.close()
         self.session_factory = sessionmaker(self.engine, expire_on_commit=False)
         self.requires_migration_revision = not create_schema
         if create_schema:
@@ -312,8 +325,9 @@ def _iso_datetime(value: datetime) -> str:
 class SqlConversationRepository(ConversationRepository):
     """Normalized SQL adapter suitable for SQLite and PostgreSQL."""
 
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, *, user_id: str | None = None):
         self.database = database
+        self.user_id = user_id
 
     def list(self) -> list[ConversationData]:
         with self.database.session() as session:
@@ -324,6 +338,7 @@ class SqlConversationRepository(ConversationRepository):
                     (MessageRecord.conversation_id == ConversationRecord.id)
                     & (MessageRecord.role != "system"),
                 )
+                .where(ConversationRecord.user_id == self.user_id)
                 .group_by(ConversationRecord.id)
                 .order_by(ConversationRecord.updated_at.desc())
             ).all()
@@ -337,7 +352,12 @@ class SqlConversationRepository(ConversationRepository):
     def get(self, conversation_id: str) -> ConversationData | None:
         validate_storage_id(conversation_id, "conversation id")
         with self.database.session() as session:
-            record = session.get(ConversationRecord, conversation_id)
+            record = session.scalar(
+                select(ConversationRecord).where(
+                    ConversationRecord.id == conversation_id,
+                    ConversationRecord.user_id == self.user_id,
+                )
+            )
             if record is None:
                 return None
             # Relationship data is materialized before the session closes.
@@ -355,10 +375,16 @@ class SqlConversationRepository(ConversationRepository):
             if key not in {"id", "title", "created_at", "updated_at", "messages"}
         }
         with self.database.session() as session, session.begin():
-            record = session.get(ConversationRecord, conversation_id)
+            record = session.scalar(
+                select(ConversationRecord).where(
+                    ConversationRecord.id == conversation_id,
+                    ConversationRecord.user_id == self.user_id,
+                )
+            )
             if record is None:
                 record = ConversationRecord(
                     id=conversation_id,
+                    user_id=self.user_id,
                     title=str(conversation.get("title", "New conversation"))[:200],
                     created_at=created_at,
                     updated_at=now,
@@ -393,7 +419,12 @@ class SqlConversationRepository(ConversationRepository):
     def delete(self, conversation_id: str) -> bool:
         validate_storage_id(conversation_id, "conversation id")
         with self.database.session() as session, session.begin():
-            record = session.get(ConversationRecord, conversation_id)
+            record = session.scalar(
+                select(ConversationRecord).where(
+                    ConversationRecord.id == conversation_id,
+                    ConversationRecord.user_id == self.user_id,
+                )
+            )
             if record is None:
                 return False
             session.delete(record)
