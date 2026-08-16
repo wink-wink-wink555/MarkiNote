@@ -44,6 +44,22 @@ MarkiNote 将一个 Markdown 文件目录转化为可在浏览器中使用的写
 
 <a id="implemented-features"></a>
 
+## 🔗 项目联动：FinNote 智能金融文档系统
+
+MarkiNote 已与 [FinanceMCP](https://github.com/guangxiangdebizi/FinanceMCP) 进行项目联动与融合，形成面向金融研究、AI 分析与知识沉淀场景的智能金融文档系统 **FinNote**。该项目已参加上海市大学生计算机应用能力大赛并获得二等奖。
+
+🌐 **在线体验：[https://finvestai.top/](https://finvestai.top/)**
+
+在 FinNote 的整体架构中，[FinanceMCP](https://github.com/guangxiangdebizi/FinanceMCP) 作为金融数据与工具服务层，基于 Node.js、Express 与 Model Context Protocol（MCP）SDK 构建，通过 19 个标准化 MCP 工具向 AI Agent 提供股票、基金、债券、宏观经济、财经新闻、技术指标以及多市场行情等金融数据能力。
+
+MarkiNote 则承担 **AI Agent 驱动的文档与知识管理应用层**：负责接收和组织用户的自然语言任务，将金融数据与大模型分析结果呈现在可编辑的 Markdown 工作区中，并进一步沉淀为可管理、可追踪、可复用的文档资产。
+
+在 FinNote 场景下，两套系统通过 HTTP / MCP 服务链路协同工作，形成：
+
+**自然语言提问 → AI Agent 任务理解 → FinanceMCP 工具调用 → 金融数据获取 → AI 智能分析 → Markdown 文档生成与沉淀 → 持续编辑与知识管理**
+
+因此，MarkiNote 不仅可以作为一个通用的自托管 Markdown 工作区与 AI Agent 文档操作系统，也可以作为 FinNote 的智能投研工作台，将实时金融数据、AI 分析能力与长期文档资产管理连接在同一套工作流中。
+
 ## 🎯 已实现功能
 
 | 能力 | 已实现内容 | 当前边界 |
