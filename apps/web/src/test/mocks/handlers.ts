@@ -5,6 +5,7 @@ const rendered = '<h1>Guide</h1><p>Welcome to <strong>MarkiNote</strong>.</p>';
 const api = (path: string) => `http://localhost${path}`;
 
 export const handlers = [
+  http.get('*/auth/config', () => HttpResponse.json({ mode: 'access_token', registrationEnabled: false })),
   http.get(api('/api/v1'), () => HttpResponse.json({ name: 'MarkiNote API', version: '1.0.0', contract: 1 })),
   http.get(api('/api/v1/documents'), ({ request }) => {
     const path = new URL(request.url).searchParams.get('path') ?? '';

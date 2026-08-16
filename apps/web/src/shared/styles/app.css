@@ -380,6 +380,41 @@
   line-height: 1.5;
 }
 
+.auth-tabs {
+  margin-bottom: var(--space-4);
+  padding: 3px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.auth-tabs button {
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 620;
+}
+
+.auth-tabs button.active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.auth-notice {
+  padding: 9px 10px;
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-sm);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--font-size-caption);
+  line-height: 1.45;
+}
+
 .auth-error {
   margin-top: var(--space-1);
   padding: 9px 10px;
@@ -3107,6 +3142,37 @@
   min-width: 0;
   display: grid;
   gap: var(--space-4);
+}
+
+.credential-settings,
+.credential-row {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.credential-settings {
+  gap: var(--space-4);
+}
+
+.credential-row > label {
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 620;
+}
+
+.credential-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.credential-row small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  font-size: var(--font-size-caption);
 }
 
 .settings-form fieldset {

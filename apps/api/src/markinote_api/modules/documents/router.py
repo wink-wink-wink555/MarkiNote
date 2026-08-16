@@ -9,12 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field
 from markinote_api.modules.documents.errors import DocumentCapacityExceeded, DocumentConflict
 from markinote_api.modules.documents.service import DocumentService
 from markinote_api.platform.metrics import DOCUMENT_CONFLICTS
+from markinote_api.platform.tenancy import services_for_request
 
 router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
 
 def get_service(request: Request) -> DocumentService:
-    return request.app.state.document_service
+    return services_for_request(request).document_service
 
 
 class DocumentItem(BaseModel):

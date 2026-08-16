@@ -312,8 +312,15 @@ class JsonAgentRunJournal:
 class SqlAgentRunJournal:
     """Transactional adapter; operators schedule bounded ``prune_terminal`` batches."""
 
-    def __init__(self, database: Database, *, now: Callable[[], datetime] | None = None):
+    def __init__(
+        self,
+        database: Database,
+        *,
+        user_id: str | None = None,
+        now: Callable[[], datetime] | None = None,
+    ):
         self.database = database
+        self.user_id = user_id
         self._now = now or (lambda: datetime.now(UTC))
 
     def start(
@@ -337,6 +344,7 @@ class SqlAgentRunJournal:
                     AgentRunRecord(
                         run_id=run_id,
                         request_id=request_id,
+                        user_id=self.user_id,
                         conversation_id=None,
                         provider=provider,
                         model=model,
@@ -366,6 +374,7 @@ class SqlAgentRunJournal:
                 .where(
                     AgentRunRecord.run_id == run_id,
                     AgentRunRecord.request_id == request_id,
+                    AgentRunRecord.user_id == self.user_id,
                     AgentRunRecord.state == "running",
                 )
                 .values(
@@ -388,6 +397,7 @@ class SqlAgentRunJournal:
                 .where(
                     AgentRunRecord.run_id == run_id,
                     AgentRunRecord.request_id == request_id,
+                    AgentRunRecord.user_id == self.user_id,
                     AgentRunRecord.state == "running",
                     AgentRunRecord.first_content_at.is_(None),
                 )
@@ -418,6 +428,7 @@ class SqlAgentRunJournal:
                 .where(
                     AgentRunRecord.run_id == run_id,
                     AgentRunRecord.request_id == request_id,
+                    AgentRunRecord.user_id == self.user_id,
                     AgentRunRecord.state == "running",
                 )
                 .values(
@@ -432,7 +443,13 @@ class SqlAgentRunJournal:
 
     def inspect(self, run_id: str, request_id: str) -> AgentRunData | None:
         with self.database.session() as session:
-            record = session.get(AgentRunRecord, (run_id, request_id))
+            record = session.scalar(
+                select(AgentRunRecord).where(
+                    AgentRunRecord.run_id == run_id,
+                    AgentRunRecord.request_id == request_id,
+                    AgentRunRecord.user_id == self.user_id,
+                )
+            )
             if record is None:
                 return None
             return {
@@ -458,7 +475,10 @@ class SqlAgentRunJournal:
         with self.database.session() as session, session.begin():
             keys = session.execute(
                 select(AgentRunRecord.run_id, AgentRunRecord.request_id)
-                .where(AgentRunRecord.state == "running")
+                .where(
+                    AgentRunRecord.state == "running",
+                    AgentRunRecord.user_id == self.user_id,
+                )
                 .order_by(
                     AgentRunRecord.started_at,
                     AgentRunRecord.run_id,
@@ -473,6 +493,7 @@ class SqlAgentRunJournal:
                 .where(
                     tuple_(AgentRunRecord.run_id, AgentRunRecord.request_id).in_(keys),
                     AgentRunRecord.state == "running",
+                    AgentRunRecord.user_id == self.user_id,
                 )
                 .values(
                     state="failed",
@@ -493,6 +514,7 @@ class SqlAgentRunJournal:
                 select(AgentRunRecord.run_id, AgentRunRecord.request_id)
                 .where(
                     AgentRunRecord.state.in_(("completed", "failed", "cancelled")),
+                    AgentRunRecord.user_id == self.user_id,
                     AgentRunRecord.finished_at.is_not(None),
                     AgentRunRecord.finished_at < cutoff,
                 )
@@ -504,6 +526,7 @@ class SqlAgentRunJournal:
             session.execute(
                 delete(AgentRunRecord).where(
                     tuple_(AgentRunRecord.run_id, AgentRunRecord.request_id).in_(keys)
+                    , AgentRunRecord.user_id == self.user_id
                 )
             )
             return len(keys)
