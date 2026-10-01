@@ -48,8 +48,6 @@ The original Flask-based lightweight edition is preserved on the [`lite`](https:
 
 MarkiNote has been integrated with [FinanceMCP](https://github.com/guangxiangdebizi/FinanceMCP) to form **FinNote**, an intelligent financial document system designed for financial research, AI-assisted analysis, and long-term knowledge preservation. The project participated in the Shanghai Collegiate Computer Application Ability Competition and received a Second Prize.
 
-🌐 **Live Demo: [https://finvestai.top/](https://finvestai.top/)**
-
 Within the FinNote architecture, [FinanceMCP](https://github.com/guangxiangdebizi/FinanceMCP) serves as the financial data and tool service layer. Built with Node.js, Express, and the Model Context Protocol (MCP) SDK, it exposes 19 standardized MCP tools that provide AI agents with access to stocks, funds, bonds, macroeconomic data, financial news, technical indicators, and multi-market financial data.
 
 MarkiNote serves as the **AI Agent-powered document and knowledge management application layer**. It receives and organizes users' natural-language tasks, presents financial data and model-generated analysis inside an editable Markdown workspace, and turns the resulting analysis into manageable, traceable, and reusable document assets.
