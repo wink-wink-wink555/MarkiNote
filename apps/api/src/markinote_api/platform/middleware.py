@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import re
 import threading
 import time
@@ -75,6 +76,21 @@ def _protected_api_path(path: str) -> bool:
     )
 
 
+def _auth_client_key(request: Request) -> str:
+    peer = request.client.host if request.client else "unknown"
+    try:
+        peer_address = ipaddress.ip_address(peer)
+    except ValueError:
+        return peer
+    if not peer_address.is_loopback:
+        return peer
+    forwarded = request.headers.get("x-real-ip", "").strip()
+    try:
+        return str(ipaddress.ip_address(forwarded))
+    except ValueError:
+        return peer
+
+
 def _access_token_version(signing_secret: str, access_token: str) -> str:
     """Return a domain-separated, non-reversible version marker for session binding."""
     return hmac.new(
@@ -102,6 +118,7 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
     access_token_version = _access_token_version(signing_secret, configured_token)
     auth_attempts: defaultdict[str, deque[float]] = defaultdict(deque)
     auth_attempts_guard = threading.Lock()
+    account_auth = getattr(app.state, "account_auth", None)
 
     def valid_session(cookie: str) -> bool:
         if not cookie:
@@ -125,6 +142,8 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
         supplied_request_id = request.headers.get("x-request-id", "").strip()
         request_id = supplied_request_id if _REQUEST_ID.fullmatch(supplied_request_id) else f"req_{uuid.uuid4().hex}"
         request.state.request_id = request_id
+        request.state.account = None
+        request.state.user_id = None
         context_token = request_id_var.set(request_id)
         started = time.perf_counter()
 
@@ -155,7 +174,7 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
                     response.headers[name] = value
             if (
                 request.url.path.startswith("/api/")
-                or request.url.path == "/auth/access-token"
+                or request.url.path.startswith("/auth/")
             ) and "Cache-Control" not in response.headers:
                 response.headers["Cache-Control"] = "no-store"
             if not request.url.path.startswith("/health/"):
@@ -184,8 +203,14 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
                     },
                     status_code=400,
                 ))
-            if request.url.path == "/auth/access-token" and request.method == "POST":
-                client_key = request.client.host if request.client else "unknown"
+            if request.url.path in {
+                "/auth/access-token",
+                "/auth/login",
+                "/auth/register",
+                "/auth/resend-verification",
+                "/auth/verify-email",
+            } and request.method == "POST":
+                client_key = _auth_client_key(request)
                 now = time.monotonic()
                 with auth_attempts_guard:
                     attempts = auth_attempts[client_key]
@@ -198,13 +223,26 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
                                 "title": "Too many authentication attempts",
                                 "status": 429,
                                 "code": "authentication_rate_limited",
-                                "detail": "Wait before trying another access token.",
+                                "detail": "Wait before trying another authentication request.",
                                 "requestId": request_id,
                             },
                             status_code=429,
                             headers={"Retry-After": "60"},
                         ))
                     attempts.append(now)
+                origin = request.headers.get("origin", "")
+                if not origin or not _same_origin(request, origin, trusted_origins):
+                    return finalize(JSONResponse(
+                        {
+                            "type": "https://markinote.local/problems/same-origin-required",
+                            "title": "Same-origin request required",
+                            "status": 403,
+                            "code": "same_origin_required",
+                            "detail": "Authentication requests require a same-origin Origin header.",
+                            "requestId": request_id,
+                        },
+                        status_code=403,
+                    ))
 
             if request.method in _MUTATING_METHODS:
                 if request.headers.get("sec-fetch-site", "").casefold() == "cross-site":
@@ -219,8 +257,8 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
                         },
                         status_code=403,
                     ))
-                origin = request.headers.get("origin")
-                if origin and not _same_origin(request, origin, trusted_origins):
+                origin_header = request.headers.get("origin")
+                if origin_header and not _same_origin(request, origin_header, trusted_origins):
                     return finalize(JSONResponse(
                         {
                             "type": "https://markinote.local/problems/cross-site-request",
@@ -273,7 +311,29 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
                 # BaseHTTPMiddleware replays a cached body to the downstream app.
                 request._body = b"".join(chunks)
 
-            if configured_token and _protected_api_path(request.url.path):
+            if settings.auth_mode == "accounts":
+                account = (
+                    account_auth.from_cookie(
+                        request.cookies.get(settings.session_cookie_name, "")
+                    )
+                    if account_auth is not None
+                    else None
+                )
+                request.state.account = account
+                request.state.user_id = account.id if account is not None else None
+                if _protected_api_path(request.url.path) and account is None:
+                    return finalize(JSONResponse(
+                        {
+                            "type": "https://markinote.local/problems/authentication-required",
+                            "title": "Authentication required",
+                            "status": 401,
+                            "code": "authentication_required",
+                            "detail": "Sign in with a verified email account.",
+                            "requestId": request_id,
+                        },
+                        status_code=401,
+                    ))
+            elif configured_token and _protected_api_path(request.url.path):
                 cookie_valid = valid_session(request.cookies.get(settings.session_cookie_name, ""))
                 authorization = request.headers.get("authorization", "")
                 bearer_valid = False
@@ -300,6 +360,14 @@ def install_middleware(app: FastAPI, settings: Settings) -> None:
 
     @app.post("/auth/access-token", include_in_schema=False)
     async def exchange_access_token(request: Request, payload: AccessTokenExchange):
+        if settings.auth_mode != "access_token":
+            return JSONResponse(
+                {
+                    "code": "access_token_auth_disabled",
+                    "detail": "Access-token login is disabled.",
+                },
+                status_code=404,
+            )
         origin = request.headers.get("origin", "")
         if not origin or not _same_origin(request, origin, trusted_origins):
             return JSONResponse(

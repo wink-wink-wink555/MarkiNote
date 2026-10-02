@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Protocol, cast
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
+from markinote_api.modules.documents.database_storage import DatabaseDocumentStorage
 from markinote_api.modules.documents.errors import DocumentError
 from markinote_api.modules.documents.service import DocumentService
 from markinote_api.modules.documents.storage import LocalDocumentStorage
@@ -462,6 +463,40 @@ def execute_tool(tool_name, arguments, library_dir, backup_manager, backup_group
     if not isinstance(args, dict):
         return '参数解析失败: 参数必须是 JSON 对象', None
 
+    document_service = extra.get("document_service")
+    if (
+        isinstance(document_service, DocumentService)
+        and isinstance(document_service.storage, DatabaseDocumentStorage)
+        and tool_name in {
+            "read_file",
+            "write_file",
+            "edit_file",
+            "create_file",
+            "create_folder",
+            "delete_item",
+            "move_item",
+            "list_directory",
+            "search_files",
+        }
+    ):
+        try:
+            return _execute_database_document_tool(
+                tool_name,
+                args,
+                document_service,
+                backup_manager,
+                backup_group_id,
+                command_id=extra.get("command_id"),
+            )
+        except MutationCompensatedError:
+            return "Operation was not committed; the original state was restored.", None
+        except MutationRecoveryRequiredError as error:
+            return "Operation finalization failed and needs recovery.", error.backup_info
+        except DocumentError as error:
+            return f"Document error: {error.message}", None
+        except (KeyError, TypeError, ValueError) as error:
+            return f"Document tool error: {error}", None
+
     handlers = {
         'read_file': _read_file,
         'write_file': _write_file,
@@ -500,6 +535,142 @@ def execute_tool(tool_name, arguments, library_dir, backup_manager, backup_group
     except Exception:
         LOGGER.error('AI tool execution failed', extra={'tool_name': str(tool_name)})
         return '工具执行失败，请查看服务端日志', None
+
+
+def _execute_database_document_tool(
+    tool_name: str,
+    args: dict,
+    service: DocumentService,
+    backup_manager,
+    backup_group_id: str | None,
+    *,
+    command_id: str | None,
+):
+    """Execute document tools against the tenant database, never a file cache."""
+
+    def backed(
+        operation_type: str,
+        path: str,
+        mutation: Callable[[], object],
+        *,
+        after_path: str | None = None,
+        target_path: str | None = None,
+    ):
+        operation_index = None
+        if backup_group_id and backup_manager:
+            operation_index = backup_manager.backup_before_modify(
+                backup_group_id,
+                operation_type,
+                path,
+                f"{operation_type}: {path}",
+                target_path=target_path,
+            )
+        def apply_mutation() -> None:
+            mutation()
+
+        _apply_backed_mutation(
+            apply_mutation,
+            backup_manager=backup_manager,
+            backup_group_id=backup_group_id,
+            operation_index=operation_index,
+            operation_type=operation_type,
+            after_path=after_path or path,
+            command_id=command_id,
+        )
+        return operation_index
+
+    if tool_name == "read_file":
+        value = service.read(str(args.get("path", "")))
+        content = str(value["content"])
+        lines = content.splitlines(keepends=True)
+        start = args.get("start_line")
+        end = args.get("end_line")
+        if start is not None or end is not None:
+            if start is not None and (isinstance(start, bool) or not isinstance(start, int) or start < 1):
+                raise ValueError("start_line must be a positive integer")
+            if end is not None and (isinstance(end, bool) or not isinstance(end, int) or end < 1):
+                raise ValueError("end_line must be a positive integer")
+            if start is not None and end is not None and end < start:
+                raise ValueError("end_line cannot be less than start_line")
+            content = "".join(lines[max(0, (start or 1) - 1): min(len(lines), end or len(lines))])
+        return f"Document: {value['path']} ({value['size']} bytes)\n---\n{content}", None
+
+    if tool_name == "list_directory":
+        return json.dumps(service.list(str(args.get("path", ""))), ensure_ascii=False), None
+
+    if tool_name == "search_files":
+        return json.dumps(service.search(str(args.get("query", "")), limit=200), ensure_ascii=False), None
+
+    if tool_name == "write_file":
+        path = str(args.get("path", ""))
+        write_content = args.get("content")
+        if not isinstance(write_content, str):
+            raise ValueError("content must be a string")
+        index = backed("write_file", path, lambda: service.save(path, write_content))
+        return f"Wrote document: {path}", {"type": tool_name, "path": path, "operation_index": index}
+
+    if tool_name == "edit_file":
+        path = str(args.get("path", ""))
+        old_text = args.get("old_text")
+        new_text = args.get("new_text")
+        if not isinstance(old_text, str) or not old_text or not isinstance(new_text, str):
+            raise ValueError("old_text must be non-empty and new_text must be a string")
+        current = str(service.read(path)["content"])
+        if old_text not in current:
+            return f"Text was not found in {path}", None
+        updated = current.replace(old_text, new_text, 1)
+        index = backed("edit_file", path, lambda: service.save(path, updated))
+        return f"Edited document: {path}", {"type": tool_name, "path": path, "operation_index": index}
+
+    if tool_name == "create_file":
+        path = str(args.get("path", ""))
+        parent, _, name = path.rpartition("/")
+        create_content = args.get("content", "")
+        if not isinstance(create_content, str):
+            raise ValueError("content must be a string")
+        index = backed("create_file", path, lambda: service.create_file(parent, name, create_content))
+        return f"Created document: {path}", {"type": tool_name, "path": path, "operation_index": index}
+
+    if tool_name == "create_folder":
+        path = str(args.get("path", ""))
+        parent, _, name = path.rpartition("/")
+        index = backed("create_folder", path, lambda: service.create_folder(parent, name))
+        return f"Created folder: {path}", {"type": tool_name, "path": path, "operation_index": index}
+
+    if tool_name == "delete_item":
+        path = str(args.get("path", ""))
+        if not backup_group_id or not backup_manager:
+            return "Deletion refused because no durable backup group is available.", None
+        index = backed("delete_item", path, lambda: service.delete_with_external_snapshot(path))
+        return f"Deleted item: {path}", {"type": tool_name, "path": path, "operation_index": index}
+
+    if tool_name == "move_item":
+        source = str(args.get("source", ""))
+        target = str(args.get("target", ""))
+        if not target:
+            target = source.rsplit("/", 1)[-1]
+        else:
+            try:
+                service.list(target)
+            except DocumentError:
+                pass
+            else:
+                target = f"{target.rstrip('/')}/{source.rsplit('/', 1)[-1]}"
+        index = backed(
+            "move_item",
+            source,
+            lambda: service.relocate(source, target),
+            after_path=target,
+            target_path=target,
+        )
+        return f"Moved item: {source} -> {target}", {
+            "type": tool_name,
+            "path": source,
+            "target": target,
+            "operation_index": index,
+        }
+
+    return "Unknown database document tool", None
 
 
 def _read_file(args, lib_dir, bm, gid, **extra):

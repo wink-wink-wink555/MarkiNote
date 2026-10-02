@@ -25,7 +25,7 @@ MarkiNote 将一个 Markdown 文件目录转化为可在浏览器中使用的写
 <a id="project-status"></a>
 
 > [!IMPORTANT]
-> **MarkiNote 4.0.0 是 Beta 软件。** 它适合开源审查、单机自托管评估和收集反馈。目前它还不是稳定生产版本、多用户账号系统或高可用服务。将它暴露到受信任主机之外前，请阅读[已知限制](#known-limitations)。
+> **MarkiNote 4.0.0 是 Beta 软件。** 它适合开源审查、单机自托管评估和收集反馈。当前已包含数据库多账号模式，但还不是稳定生产版本、RBAC/OIDC 平台或高可用服务。将它暴露到受信任主机之外前，请阅读[已知限制](#known-limitations)。
 
 原有基于 Flask 的轻量版保留在 [`lite`](https://github.com/wink-wink-wink555/MarkiNote/tree/lite) 分支中。`main` 分支包含当前这套完整的 React/FastAPI/Docker 版本。
 
@@ -36,11 +36,12 @@ MarkiNote 将一个 Markdown 文件目录转化为可在浏览器中使用的写
 | Web | React 19、TypeScript、Vite、CodeMirror 6、TanStack Query |
 | API | Python 3.12、FastAPI、Pydantic、SQLAlchemy、Alembic |
 | 入口 | NGINX 提供 SPA，并代理同源 HTTP/SSE 流量 |
-| 文档 | LocalFS 上的 Markdown、兼容 Markdown 的文本和纯文本 |
-| 会话 | 默认使用 JSON；可选 SQLite/PostgreSQL repository adapter |
-| AI | DeepSeek 和 Kimi allowlist、流式 SSE、11 个有界工具 |
+| 文档 | 兼容模式使用 LocalFS；账号模式使用按租户隔离的 SQL 存储 |
+| 账号 | 邮箱验证、用户名/邮箱登录、独立虚拟根目录、按用户加密凭据 |
+| 会话 | 默认使用 JSON；账号模式使用按租户隔离的 SQLite/PostgreSQL |
+| AI | DeepSeek 和 Kimi allowlist、流式 SSE、受保护的文件工具与可选 FinanceMCP 工具 |
 | 运维 | Docker Compose、可选指标/追踪/数据库 profile、加固的生产 overlay |
-| 预期拓扑 | 单租户、一个 API 容器、一个 Uvicorn worker、一个文档写入者 |
+| 预期拓扑 | 一个 API 容器和 Uvicorn worker；支持单租户或数据库多账号模式 |
 
 <a id="implemented-features"></a>
 
@@ -60,6 +61,8 @@ MarkiNote 则承担 **AI Agent 驱动的文档与知识管理应用层**：负�
 
 因此，MarkiNote 不仅可以作为一个通用的自托管 Markdown 工作区与 AI Agent 文档操作系统，也可以作为 FinNote 的智能投研工作台，将实时金融数据、AI 分析能力与长期文档资产管理连接在同一套工作流中。
 
+配置 `MARKINOTE_FINANCE_MCP_URL` 后，MarkiNote Agent 会自动注册 FinanceMCP 当前可用的白名单工具。每个账号使用自己独立的 Tushare/Qveris 凭据；FinanceMCP 完整业务结果会交给模型并写入会话数据库，不施加应用级条数或响应字节截断。面向浏览器的工具卡片仅保留独立的安全预览边界。
+
 ## 🎯 已实现功能
 
 | 能力 | 已实现内容 | 当前边界 |
@@ -71,6 +74,8 @@ MarkiNote 则承担 **AI Agent 驱动的文档与知识管理应用层**：负�
 | 国际化 | 中文、英文、法文和日文 UI；浅色/深色主题；响应式桌面/移动布局 | 产品文档以英文和简体中文维护 |
 | AI 对话 | 版本化流式事件、会话历史、取消、当前文档上下文和附件 | 真实 Provider 可用性取决于账号、区域、余额和网络 |
 | AI 操作 | 11 个工具、主动开启写权限、按资源授权、精确一次性批准、操作前快照、审计记录和单操作回滚 | 不支持跨多个文件的原子整组回滚 |
+| 账号 | 邮箱注册/验证、用户名或邮箱登录、HttpOnly 会话、加密集成凭据、数据库隔离工作区 | 暂不提供 OIDC、RBAC、组织共享或 HA |
+| 金融 | 可选的默认 FinanceMCP 工具发现/调用，使用每账号独立的 Tushare 和 Qveris 凭据 | 需要运维配置 FinanceMCP 端点，用户提供上游凭据 |
 | 平台 | RFC 9457 风格错误、request ID、存活/就绪检查、Prometheus 指标、可选 OpenTelemetry、确定性 OpenAPI 生成 | 就绪检查只是基础运行时检查，不能完整证明 Provider、数据或灾备链路正常 |
 
 侧栏搜索只筛选名称和路径。Agent 可以通过 `search_files` 对文档正文进行全文搜索。
@@ -173,11 +178,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\import-library
 
 <details><summary><strong>存储与并发模型</strong></summary>
 
-- 即使启用了 PostgreSQL profile，Markdown 正文也始终保留在 LocalFS 上。
-- 写操作采用路径校验、配额、原子替换、内容版本和进程内资源锁。
+- 在向后兼容的 `access_token` 模式下，即使启用了 PostgreSQL 会话 profile，Markdown 正文仍保留在 LocalFS 上。
+- 在 `accounts` 模式下，SQL 是文档、会话、命令/审计/run 日志、操作快照和加密凭据的唯一事实来源；不使用 JSON 文件或缓存作为权威用户数据存储。
+- 每个账号拥有独立的虚拟根目录。路径、配额统计、会话、操作和集成凭据都按认证账号 ID 过滤；不同账号可以安全使用完全相同的文件路径。
+- 新账号会预置 `Getting Started/Welcome.md` 和 `Getting Started/FinanceMCP.md`。默认实时文档配额为**每账号 30 MiB**（`MARKINOTE_MAX_LIBRARY_BYTES=31457280`）。
+- 写操作采用路径校验、按租户配额、内容版本、账号模式数据库事务和进程内资源锁。
 - 支持的拓扑严格限定为一个 API 写入者。不要因为启用了 PostgreSQL 就增加 Uvicorn worker 或 API 副本。
 - 默认的 `MARKINOTE_CONVERSATION_BACKEND=json` 将会话和日志存储为 JSON。在此 profile 中不会打开已配置的数据库 URL。
-- `MARKINOTE_CONVERSATION_BACKEND=database` 会为会话、操作日志和 Agent run 日志启用 SQLAlchemy 存储。它可以在本地开发中使用 SQLite，也可以使用可选 profile 中的 PostgreSQL。
+- `MARKINOTE_AUTH_MODE=accounts` 强制要求 `MARKINOTE_CONVERSATION_BACKEND=database`；单机可以使用 SQLite，可选 profile 可以使用 PostgreSQL。
 - Redis 是预留基础设施。在此版本中，它不是缓存、队列、锁服务或核心请求依赖。
 
 </details>
@@ -209,8 +217,9 @@ Agent run 最多执行 8 轮工具、总计 24 次工具调用。Agent 文件工
 
 ### Key、隐私与批准
 
-- 在 Web UI 中输入的 key 只存在于当前页面内存中。旧版 MarkiNote 的 local-storage key 条目会被移除，刷新或关闭页面会清除内存中的值。
-- Provider/模型偏好可以持久化，但 key 不会。`MARKINOTE_AI_API_KEY` 是一个可选的全局服务端 fallback，因此必须与选定 Provider 匹配。在当前 Compose 基线中，它是 Docker 主机/容器管理员可见的环境变量；生产运维人员应通过外部 secret manager 注入，或将其留空。
+- 在 `access_token` 模式下，Web UI 中输入的 key 只存在于当前页面内存中；旧版 local-storage key 会被移除，刷新或关闭页面会清除内存中的值。
+- 在 `accounts` 模式下，用户可在设置中保存、替换或删除 DeepSeek、Tushare 和 Qveris 凭据。值由 `MARKINOTE_CREDENTIAL_ENCRYPTION_KEY` 加密、按账号 ID 隔离、不会返回浏览器，并持久化到数据库而不是 JSON/local storage。
+- `MARKINOTE_AI_API_KEY` 仍可作为兼容/单租户部署的全局服务端 fallback；生产部署应优先使用账号凭据或外部 secret manager。
 - 消息、选定文档、附件和已抓取页面的摘要会发送给选定的外部 Provider。不要提交 Provider 未获授权处理的内容。
 - 长网页摘要和可选的自动标题生成会发起额外 Provider 请求，并可能产生额外费用。
 - 新建和恢复的会话，其 AI 写权限初始均为**关闭**。
@@ -301,8 +310,12 @@ Prometheus 默认只绑定到回环地址。应用指标使用由服务端定义
 | `MARKINOTE_HTTP_BIND` | `127.0.0.1` | 网关发布到的主机网络接口 |
 | `MARKINOTE_HTTP_PORT` | `8080` | 主机网关端口 |
 | `MARKINOTE_ENVIRONMENT` | `development` | `development`、`test` 或采用 fail-closed 校验的 `production` |
+| `MARKINOTE_AUTH_MODE` | `access_token` | `access_token` 或数据库支持的 `accounts` 认证 |
+| `MARKINOTE_REGISTRATION_ENABLED` | `false` | 在账号模式开放邮箱注册 |
 | `MARKINOTE_ACCESS_TOKEN` | 空 | 单租户部署 token；在受信任的回环地址使用之外必须设置 |
 | `MARKINOTE_SECRET_KEY` | 空 | 用于签署 8 小时有效的 HttpOnly 访问 Cookie；必须与 token 不同 |
+| `MARKINOTE_CREDENTIAL_ENCRYPTION_KEY` | 空 | 生产账号模式必需的 Fernet 密钥；不得提交到仓库 |
+| `MARKINOTE_SMTP_*` | 空 / 端口 587 | 验证邮件传输与发件人配置 |
 | `MARKINOTE_PUBLIC_ORIGIN` | 空 | 生产环境要求的规范 HTTPS origin |
 | `MARKINOTE_TRUSTED_HOSTS` | 回环主机、`testserver`、`api` | 主机名 JSON 数组；不得包含 scheme、路径或端口 |
 | `MARKINOTE_TRUSTED_ORIGINS` | `[]` | 额外接受的写请求 origin；这不是 CORS 开关 |
@@ -321,7 +334,7 @@ Prometheus 默认只绑定到回环地址。应用指标使用由服务端定义
 | `MARKINOTE_MAX_REQUEST_BYTES` | 16 MiB | 整个请求的大小限制 |
 | `MARKINOTE_MAX_DOCUMENT_BYTES` | 2 MiB | 单个文档大小限制 |
 | `MARKINOTE_MAX_PREVIEW_BYTES` | 2 MiB | 服务端预览大小限制 |
-| `MARKINOTE_MAX_LIBRARY_BYTES` | 1 GiB | 实时文档库配额 |
+| `MARKINOTE_MAX_LIBRARY_BYTES` | 30 MiB | 实时文档配额；对每个账号分别执行 |
 | `MARKINOTE_TRASH_MAX_ITEMS` | 500 | 保留的回收站项目数量 |
 | `MARKINOTE_TRASH_MAX_BYTES` | 1 GiB | 回收站字节预算 |
 | `MARKINOTE_BACKUP_MAX_GROUPS` | 100 | 普通 AI 备份组数量 |
@@ -332,6 +345,8 @@ Prometheus 默认只绑定到回环地址。应用指标使用由服务端定义
 | 变量 | Compose 默认值 | 含义 |
 |---|---:|---|
 | `MARKINOTE_AI_API_KEY` | 空 | 可选的单一服务端 Provider 凭据 |
+| `MARKINOTE_FINANCE_MCP_URL` | 空 | 自动注册白名单金融工具的回环 HTTP 或 HTTPS MCP 端点 |
+| `MARKINOTE_FINANCE_MCP_TIMEOUT_SECONDS` | `45` | FinanceMCP 请求超时；不是业务结果大小/条数上限 |
 | `MARKINOTE_AI_GENERATE_TITLES` | `false` | 启用自动会话标题时会增加一次 Provider 请求 |
 | `MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP` | `false` | production overlay 会启用有界的过期 run 协调 |
 | `MARKINOTE_AGENT_RUN_SINGLE_WRITER` | `false` | 启动协调运行前所需的单写入者确认 |
@@ -347,6 +362,33 @@ Prometheus 默认只绑定到回环地址。应用指标使用由服务端定义
 当前有效默认值还将单条消息限制为 32 Ki 字符，附件限制为五个文件 / 每个 256 KiB / 总计 768 KiB，合并上下文限制为 120 Ki 字符。基线 Compose 文件不会转发后面这些设置；仅修改主机上名称相似的变量不会改变容器行为，除非同时更新并测试 Compose 映射。
 
 </details>
+
+### 数据库账号模式
+
+以下值应通过部署环境的配置/Secret 系统注入，绝不能提交真实密钥或密码：
+
+```dotenv
+MARKINOTE_AUTH_MODE=accounts
+MARKINOTE_REGISTRATION_ENABLED=true
+MARKINOTE_CONVERSATION_BACKEND=database
+MARKINOTE_AUTO_CREATE_DATABASE=false
+MARKINOTE_DATABASE_URL=sqlite:////var/lib/markinote/markinote.db
+MARKINOTE_MAX_LIBRARY_BYTES=31457280
+MARKINOTE_CREDENTIAL_ENCRYPTION_KEY=<fernet-key>
+MARKINOTE_SMTP_HOST=<smtp-host>
+MARKINOTE_SMTP_PORT=587
+MARKINOTE_SMTP_SECURITY=starttls
+MARKINOTE_SMTP_SENDER_EMAIL=noreply@example.com
+MARKINOTE_FINANCE_MCP_URL=http://127.0.0.1:3000/mcp
+```
+
+API 启动前先运行 `uv run alembic upgrade head`。公开注册会发送一次性验证链接，验证后可使用用户名或邮箱登录。如需在不经过邮件投递的情况下创建一个经运维批准的初始化账号，可在单次进程中注入 `MARKINOTE_BOOTSTRAP_EMAIL`、`MARKINOTE_BOOTSTRAP_USERNAME`、`MARKINOTE_BOOTSTRAP_PASSWORD`，以及可选的 `MARKINOTE_BOOTSTRAP_DEEPSEEK_API_KEY`、`MARKINOTE_BOOTSTRAP_TUSHARE_TOKEN`、`MARKINOTE_BOOTSTRAP_QVERIS_API_KEY`：
+
+```bash
+uv run python apps/api/scripts/provision_account.py
+```
+
+脚本对已存在邮箱幂等，会验证账号、创建默认工作区并将提供的凭据加密写入 SQL，且不会打印 Secret 原文。
 
 ## 🧑‍💻 原生开发
 
@@ -559,10 +601,10 @@ python infra/ci/backup-restore-rehearsal.py --artifact-dir .artifacts/postgres-r
 
 ### 运维边界
 
-- 仅支持单租户和单写入者；不提供账号、OIDC、RBAC、租户隔离或 HA。
-- PostgreSQL 不会让 LocalFS 文档存储变成多写入者安全；Redis 不在请求路径上。
+- 账号模式提供租户隔离，但不提供 OIDC、RBAC、组织共享或 HA。
+- 受支持部署仍限定为一个 API 写入者。PostgreSQL 不会让兼容模式的 LocalFS 文档存储变成多写入者安全；Redis 不在请求路径上。
 - 回滚针对一个明确操作，而不是原子的多文件事务。
-- 损坏的 JSON 审计记录尚无自动隔离/修复工作流。
+- 兼容模式中损坏的 JSON 审计记录尚无自动隔离/修复工作流；账号模式将审计数据存入 SQL。
 - readiness 不会扫描每条记录、Provider、备份或灾备路径。
 - PowerShell 导入器可能在上游故障后留下一批部分完成的结果。
 - AI stream/lease 最大值和 gateway SSE timeout 是不同边界；需要通过日志区分缓慢的 Provider 与 gateway 中断。

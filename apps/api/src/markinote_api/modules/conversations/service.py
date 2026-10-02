@@ -9,15 +9,56 @@ from typing import Any
 from markinote_api.modules.conversations.repository import ConversationData, ConversationRepository
 from markinote_api.modules.conversations.saga import ConversationRollbackSaga
 from markinote_api.modules.operations.backup import BackupManager
+from markinote_api.modules.operations.database_backup import DatabaseBackupManager
 from markinote_api.platform.errors import Problem
 from markinote_api.platform.paths import PathValidationError, validate_storage_id
 
 
+class DatabaseConversationRollback:
+    """Database-native rollback sequence without filesystem saga records."""
+
+    def __init__(self, backup_manager: DatabaseBackupManager):
+        self.backup_manager = backup_manager
+
+    def recover(self, repository: ConversationRepository, conversation_id: str) -> None:
+        return None
+
+    def delete_terminal_records(self, conversation_id: str) -> None:
+        return None
+
+    def execute(
+        self,
+        repository: ConversationRepository,
+        value: ConversationData,
+        target_messages: list[dict[str, Any]],
+        rollback_steps: list[dict[str, Any]],
+    ) -> tuple[bool, list[dict[str, Any]]]:
+        results: list[dict[str, Any]] = []
+        for step in rollback_steps:
+            ok, message = self.backup_manager.rollback_operation(
+                step["group_id"], step["operation_index"]
+            )
+            results.append({**step, "success": ok, "message": message})
+            if not ok:
+                return False, results
+        value["messages"] = target_messages
+        repository.save(value)
+        return True, results
+
+
 class ConversationService:
-    def __init__(self, repository: ConversationRepository, backup_manager: BackupManager):
+    def __init__(
+        self,
+        repository: ConversationRepository,
+        backup_manager: BackupManager | DatabaseBackupManager,
+    ):
         self.repository = repository
         self.backup_manager = backup_manager
-        self.rollback_sagas = ConversationRollbackSaga(backup_manager)
+        self.rollback_sagas = (
+            DatabaseConversationRollback(backup_manager)
+            if isinstance(backup_manager, DatabaseBackupManager)
+            else ConversationRollbackSaga(backup_manager)
+        )
 
     def list(self) -> list[dict[str, Any]]:
         values = self.repository.list()

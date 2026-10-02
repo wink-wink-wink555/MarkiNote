@@ -11,6 +11,13 @@ from fastapi.openapi.utils import get_openapi
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from markinote_api.config import Settings, get_settings
+from markinote_api.modules.accounts.auth import AccountAuth
+from markinote_api.modules.accounts.credentials import CredentialVault
+from markinote_api.modules.accounts.mailer import VerificationMailer
+from markinote_api.modules.accounts.router import credential_router
+from markinote_api.modules.accounts.router import router as account_router
+from markinote_api.modules.accounts.store import AccountStore
+from markinote_api.modules.agent.finance_mcp import FinanceMcpClient
 from markinote_api.modules.agent.ports import AgentRunJournal
 from markinote_api.modules.agent.provider import stream_chat_completion
 from markinote_api.modules.agent.router import router as agent_router
@@ -41,6 +48,7 @@ from markinote_api.platform.logging import configure_logging
 from markinote_api.platform.middleware import install_middleware
 from markinote_api.platform.schemas import ApiRootResponse
 from markinote_api.platform.telemetry import configure_telemetry
+from markinote_api.platform.tenancy import UserServiceRegistry, UserServices
 
 
 def create_application(settings: Settings | None = None) -> FastAPI:
@@ -162,6 +170,44 @@ def create_application(settings: Settings | None = None) -> FastAPI:
             else None
         ),
     )
+    finance_mcp = (
+        FinanceMcpClient(
+            settings.finance_mcp_url,
+            timeout_seconds=settings.finance_mcp_timeout_seconds,
+        )
+        if settings.finance_mcp_url
+        else None
+    )
+    app.state.finance_mcp = finance_mcp
+    if finance_mcp is not None:
+        app.state.agent_service.finance_mcp = finance_mcp
+
+    credential_vault = CredentialVault(database, settings) if database is not None else None
+    if settings.auth_mode == "accounts":
+        if database is None or credential_vault is None:
+            raise RuntimeError("account mode requires a database")
+        account_store = AccountStore(database)
+        app.state.account_store = account_store
+        app.state.account_auth = AccountAuth(settings, account_store)
+        app.state.verification_mailer = VerificationMailer(settings)
+        app.state.credential_vault = credential_vault
+
+    app.state.user_service_registry = UserServiceRegistry(
+        settings,
+        database,
+        UserServices(
+            settings=settings,
+            document_service=app.state.document_service,
+            backup_manager=backup_manager,
+            conversation_service=conversation_service,
+            command_journal=command_journal,
+            agent_run_journal=agent_run_journal,
+            agent_service=app.state.agent_service,
+        ),
+        credential_vault=credential_vault,
+        finance_mcp=finance_mcp,
+        provider_stream=app.state.agent_service.provider_stream,
+    )
     install_exception_handlers(app)
     install_middleware(app, settings)
     app.state.telemetry_enabled = configure_telemetry(app, settings)
@@ -170,6 +216,8 @@ def create_application(settings: Settings | None = None) -> FastAPI:
     # application middleware and routers.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
     app.include_router(health_router)
+    app.include_router(account_router)
+    app.include_router(credential_router)
     app.include_router(rendering_router)
     app.include_router(document_router)
     app.include_router(conversation_router)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .database_storage import DatabaseDocumentStorage
 from .errors import DocumentValidationError
 from .storage import LocalDocumentStorage
 
@@ -11,7 +12,7 @@ from .storage import LocalDocumentStorage
 class DocumentService:
     """Application facade with JSON-friendly transport-neutral results."""
 
-    def __init__(self, storage: LocalDocumentStorage):
+    def __init__(self, storage: LocalDocumentStorage | DatabaseDocumentStorage):
         self.storage = storage
 
     @staticmethod

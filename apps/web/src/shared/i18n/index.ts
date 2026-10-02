@@ -253,6 +253,29 @@ const zh = {
   authSigningIn: '正在登录…',
   authChecking: '正在检查会话…',
   authRateLimited: '尝试次数过多，请稍后再试。',
+  accountSignIn: '登录 MarkiNote',
+  createAccount: '创建账号',
+  accountAuthBody: '每个账号都有独立的数据库工作区和金融工具配置。',
+  accountAccess: '账号访问方式',
+  register: '注册',
+  email: '邮箱',
+  username: '用户名',
+  emailOrUsername: '邮箱或用户名',
+  password: '密码',
+  workspaceQuotaNotice: '每个账号的独立文档空间上限为 30 MiB。',
+  verificationSent: '验证邮件已发送。请打开邮件中的链接后再登录。',
+  integrationCredentials: '金融与 AI 凭据',
+  integrationCredentialsHint: '凭据加密存储在你的数据库账号下，不会与其他用户共享。留空表示保留现有值。',
+  credentialConfigured: '已配置（输入新值可替换）',
+  credentialNotConfigured: '尚未配置',
+  clearCredential: '移除凭据',
+  credentialEncrypted: '已加密保存',
+  credentialWillBeRemoved: '保存后移除',
+  credentialOptional: '可选；仅在调用对应服务时使用',
+  credentialsSaved: '凭据设置已保存。',
+  saveCredentials: '保存凭据',
+  account: '账号',
+  signOut: '退出登录',
 };
 
 type Translation = typeof zh;
@@ -501,9 +524,32 @@ const en: Translation = {
   authSigningIn: 'Signing in…',
   authChecking: 'Checking session…',
   authRateLimited: 'Too many attempts. Wait before trying another access token.',
+  accountSignIn: 'Sign in to MarkiNote',
+  createAccount: 'Create account',
+  accountAuthBody: 'Every account has an isolated database workspace and finance configuration.',
+  accountAccess: 'Account access',
+  register: 'Register',
+  email: 'Email',
+  username: 'Username',
+  emailOrUsername: 'Email or username',
+  password: 'Password',
+  workspaceQuotaNotice: 'Each account has an isolated 30 MiB document quota.',
+  verificationSent: 'Verification email sent. Open its link before signing in.',
+  integrationCredentials: 'Finance and AI credentials',
+  integrationCredentialsHint: 'Credentials are encrypted under your database account and never shared with other users. Leave blank to retain a value.',
+  credentialConfigured: 'Configured (enter a new value to replace)',
+  credentialNotConfigured: 'Not configured',
+  clearCredential: 'Remove credential',
+  credentialEncrypted: 'Encrypted at rest',
+  credentialWillBeRemoved: 'Will be removed on save',
+  credentialOptional: 'Optional; used only for the corresponding integration',
+  credentialsSaved: 'Credential settings saved.',
+  saveCredentials: 'Save credentials',
+  account: 'Account',
+  signOut: 'Sign out',
 };
 
-const fr: Translation = {
+const fr: Partial<Translation> = {
   appName: 'MarkiNote',
   skipToWorkspace: 'Aller à l’espace document',
   dismissNotification: 'Fermer la notification',
@@ -749,7 +795,7 @@ const fr: Translation = {
   authRateLimited: 'Trop de tentatives. Attendez avant d’essayer un autre jeton.',
 };
 
-const ja: Translation = {
+const ja: Partial<Translation> = {
   appName: 'MarkiNote',
   skipToWorkspace: 'ドキュメント作業領域へ移動',
   dismissNotification: '通知を閉じる',

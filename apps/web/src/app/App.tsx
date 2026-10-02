@@ -12,6 +12,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AuthenticationBoundary } from '@/features/auth/components/AuthenticationBoundary';
+import { AccountCredentialsForm } from '@/features/auth/components/AccountCredentialsForm';
+import { useAuth } from '@/features/auth/model/authContext';
 import { DocumentWorkspace } from '@/features/editor/components/DocumentWorkspace';
 import { useDocumentWorkspace } from '@/features/editor/model/useDocumentWorkspace';
 import { selectedPathAfterMutations } from './documentMutations';
@@ -186,6 +188,7 @@ export function App() {
 
 function WorkspaceApp() {
   const { t, i18n } = useTranslation();
+  const auth = useAuth();
   const queryClient = useQueryClient();
   const [initialPreferences] = useState(loadUiPreferences);
   const [sidebarWidth, setSidebarWidth] = useState(initialPreferences.sidebarWidth);
@@ -465,6 +468,22 @@ function WorkspaceApp() {
             <label className="preference-toggle"><input type="checkbox" name="editor-line-wrap" checked={editorLineWrap} onChange={(event) => setEditorLineWrap(event.target.checked)} /><span><strong>{t('editorLineWrap')}</strong><small>{t('editorLineWrapHint')}</small></span></label>
           </div>
         </section>
+
+        {auth.mode === 'accounts' && <section className="settings-section" aria-labelledby="settings-integrations">
+          <div className="settings-section-heading">
+            <h3 id="settings-integrations">{t('integrationCredentials')}</h3>
+            <p>{t('integrationCredentialsHint')}</p>
+          </div>
+          <div className="settings-section-content"><AccountCredentialsForm /></div>
+        </section>}
+
+        {auth.mode === 'accounts' && <section className="settings-section" aria-labelledby="settings-account">
+          <div className="settings-section-heading">
+            <h3 id="settings-account">{t('account')}</h3>
+            <p>{auth.username ? `${auth.username} · ${auth.email ?? ''}` : auth.email}</p>
+          </div>
+          <div className="settings-section-content"><button className="button" type="button" onClick={() => void auth.logout()}>{t('signOut')}</button></div>
+        </section>}
 
         <div className="modal-actions settings-actions"><button className="button button-primary" onClick={closeSettings}>{t('confirm')}</button></div>
       </div>

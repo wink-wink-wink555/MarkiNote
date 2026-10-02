@@ -11,12 +11,12 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any
 
 from prometheus_client import Counter, Gauge
 
 from markinote_api.config import Settings
+from markinote_api.modules.agent.finance_mcp import FinanceMcpClient, FinanceMcpError
 from markinote_api.modules.agent.ports import (
     AgentBackupPort,
     AgentRunJournal,
@@ -40,13 +40,12 @@ from markinote_api.modules.agent.tools import (
     sanitize_tool_call_arguments_for_persistence,
 )
 from markinote_api.modules.conversations.service import ConversationService, append_partial_assistant
+from markinote_api.modules.documents.errors import DocumentError
 from markinote_api.modules.documents.service import DocumentService
 from markinote_api.platform.errors import Problem
-from markinote_api.platform.io import read_utf8_text
 from markinote_api.platform.paths import (
     PathValidationError,
     normalize_relative_path,
-    resolve_under_root,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -208,7 +207,7 @@ def _approval_target_for_mutation(
     tool_name: str,
     arguments: dict[str, Any],
     *,
-    library_folder: Path,
+    documents: DocumentService,
     authorized_files: list[str],
     active_approval: dict[str, Any] | None,
 ) -> str | None:
@@ -221,13 +220,11 @@ def _approval_target_for_mutation(
     if normalized.casefold() in authorized:
         return None
     try:
-        resolve_under_root(
-            library_folder,
-            normalized,
-            allow_root=False,
-            must_exist=True,
-        )
-    except (PathValidationError, FileNotFoundError):
+        try:
+            documents.read(normalized)
+        except DocumentError:
+            documents.list(normalized)
+    except DocumentError:
         # Invalid/missing paths must reach the tool executor so callers receive
         # the real typed failure instead of an irrelevant approval prompt.
         return None
@@ -416,6 +413,8 @@ class AgentService:
         documents: DocumentService,
         provider_stream: ProviderStreamPort | None = None,
         tool_executor: ToolExecutorPort | None = None,
+        finance_mcp: FinanceMcpClient | None = None,
+        credential_loader: Callable[[str], str] | None = None,
     ):
         self.settings = settings
         self.conversations = conversations
@@ -425,6 +424,8 @@ class AgentService:
         self.documents = documents
         self.provider_stream = provider_stream
         self.tool_executor = tool_executor
+        self.finance_mcp = finance_mcp
+        self.credential_loader = credential_loader
         self._active_guard = threading.Lock()
         self._active_conversations: set[str] = set()
 
@@ -433,12 +434,21 @@ class AgentService:
         api_key = (
             request.api_key.get_secret_value()
             if request.api_key
+            else self.credential_loader(f"{request.provider}_api_key")
+            if self.credential_loader
             else self.settings.ai_api_key.get_secret_value()
             if self.settings.ai_api_key
             else ""
         )
         if not api_key:
             raise Problem(422, "api_key_required", "AI API key required", "Provide a transient key or configure one.")
+
+        tool_definitions = list(TOOL_DEFINITIONS)
+        if self.finance_mcp is not None:
+            try:
+                tool_definitions.extend(self.finance_mcp.tool_definitions())
+            except FinanceMcpError:
+                LOGGER.error("FinanceMCP tool discovery failed")
 
         run_id = request.run_id or f"run_{uuid.uuid4().hex}"
         if not self.run_journal.start(
@@ -802,7 +812,7 @@ class AgentService:
                     if self.provider_stream is None:
                         provider_events = stream_chat_completion(
                             trimmed,
-                            TOOL_DEFINITIONS,
+                            tool_definitions,
                             api_key,
                             request.provider,
                             request.model,
@@ -814,7 +824,7 @@ class AgentService:
                     else:
                         provider_events = self.provider_stream(
                             trimmed,
-                            TOOL_DEFINITIONS,
+                            tool_definitions,
                             api_key,
                             request.provider,
                             request.model,
@@ -1001,7 +1011,7 @@ class AgentService:
                             candidate_target = _approval_target_for_mutation(
                                 candidate["function"]["name"],
                                 candidate_arguments,
-                                library_folder=self.settings.library_folder,
+                                documents=self.documents,
                                 authorized_files=[
                                     current_resource,
                                     *selected_resources,
@@ -1050,6 +1060,7 @@ class AgentService:
                             external_content_observed = True
                         metric_tool_name = _metric_tool_name(function_name)
                         command_backup_group_id: str | None = None
+                        is_finance_tool = False
                         approval_data: dict[str, Any] | None = None
                         resolved_approval_id: str | None = None
                         try:
@@ -1064,6 +1075,10 @@ class AgentService:
                             )
                             result, backup_info = "Tool arguments are not a valid JSON object.", None
                         else:
+                            is_finance_tool = bool(
+                                self.finance_mcp is not None
+                                and self.finance_mcp.is_tool(function_name)
+                            )
                             event_arguments = sanitize_tool_arguments_for_persistence(
                                 function_name,
                                 arguments,
@@ -1261,18 +1276,38 @@ class AgentService:
                             else:
                                 if function_name in MUTATING_TOOLS and not backup_group_id:
                                     backup_group_id = self.backup_manager.create_operation_group(conversation_id)
-                                result, backup_info = (self.tool_executor or execute_tool)(
-                                    function_name,
-                                    arguments,
-                                    str(self.settings.library_folder),
-                                    self.backup_manager,
-                                    backup_group_id,
-                                    api_key=api_key,
-                                    provider_id=request.provider,
-                                    model_id=request.model,
-                                    document_service=self.documents,
-                                    command_id=command_id,
-                                )
+                                if is_finance_tool and self.finance_mcp is not None:
+                                    try:
+                                        result = self.finance_mcp.call_tool(
+                                            function_name,
+                                            arguments,
+                                            tushare_token=(
+                                                self.credential_loader("tushare_token")
+                                                if self.credential_loader
+                                                else ""
+                                            ),
+                                            qveris_api_key=(
+                                                self.credential_loader("qveris_api_key")
+                                                if self.credential_loader
+                                                else ""
+                                            ),
+                                        )
+                                    except FinanceMcpError as error:
+                                        result = str(error)
+                                    backup_info = None
+                                else:
+                                    result, backup_info = (self.tool_executor or execute_tool)(
+                                        function_name,
+                                        arguments,
+                                        str(self.settings.library_folder),
+                                        self.backup_manager,
+                                        backup_group_id,
+                                        api_key=api_key,
+                                        provider_id=request.provider,
+                                        model_id=request.model,
+                                        document_service=self.documents,
+                                        command_id=command_id,
+                                    )
                                 if backup_info:
                                     command_backup_group_id = backup_group_id
                                 command_outcome = "completed"
@@ -1517,15 +1552,16 @@ class AgentService:
                             event_data["resolved_approval_id"] = (
                                 resolved_approval_id
                             )
+                        provider_tool_result = result if is_finance_tool else result[:5000]
                         tool_message = {
                             "role": "tool",
                             "tool_call_id": call["id"],
-                            "content": result[:5000],
+                            "content": provider_tool_result,
                             "_tool_meta": event_data,
                         }
                         conversation["messages"].append(tool_message)
                         messages_for_api.append(
-                            {"role": "tool", "tool_call_id": call["id"], "content": result[:5000]}
+                            {"role": "tool", "tool_call_id": call["id"], "content": provider_tool_result}
                         )
                         # The durable rollback handle is committed before it is
                         # exposed. A disconnect immediately after tool_result
@@ -1780,13 +1816,9 @@ class AgentService:
             if not relative_path:
                 continue
             try:
-                path, normalized = resolve_under_root(
-                    self.settings.library_folder,
-                    relative_path,
-                    allow_root=False,
-                    must_exist=True,
-                )
-            except (PathValidationError, FileNotFoundError) as error:
+                normalized = normalize_relative_path(relative_path, allow_empty=False)
+                document = self.documents.read(normalized)
+            except (PathValidationError, DocumentError) as error:
                 raise Problem(
                     400,
                     "invalid_attachment",
@@ -1807,16 +1839,16 @@ class AgentService:
                     "Too many attachments",
                     "Attachment count exceeds the limit.",
                 )
-            extension = path.suffix.casefold().lstrip(".")
-            if not path.is_file() or extension not in {"md", "markdown", "txt"}:
+            extension = normalized.rsplit(".", 1)[-1].casefold() if "." in normalized else ""
+            if extension not in {"md", "markdown", "txt"}:
                 raise Problem(400, "invalid_attachment", "Invalid attachment", "Only document files may be attached.")
-            size = path.stat().st_size
+            size = int(document["size"])
             if size > self.settings.max_attachment_bytes:
                 raise Problem(413, "attachment_too_large", "Attachment too large", normalized)
             total_bytes += size
             if total_bytes > self.settings.max_attachment_total_bytes:
                 raise Problem(413, "attachments_too_large", "Attachments too large", "Total attachment size exceeds the limit.")
-            loaded_documents.append((normalized, read_utf8_text(path)))
+            loaded_documents.append((normalized, str(document["content"])))
 
         resource_manifest = (
             "\n\n<markinote_turn_resources>\n"

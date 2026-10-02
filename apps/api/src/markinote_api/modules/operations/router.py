@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from markinote_api.platform.errors import Problem
 from markinote_api.platform.metrics import OPERATION_ROLLBACK_ATTEMPTS
 from markinote_api.platform.paths import PathValidationError
+from markinote_api.platform.tenancy import services_for_request
 
 router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
 
@@ -52,12 +53,13 @@ class RollbackResponse(BaseModel):
 
 @router.get("/backups", response_model=BackupListResponse)
 def list_backups(request: Request, limit: int = Query(default=50, ge=1, le=200)) -> dict[str, Any]:
-    return {"items": request.app.state.backup_manager.list_backups(limit=limit)}
+    return {"items": services_for_request(request).backup_manager.list_backups(limit=limit)}
 
 
 @router.post("/rollback", response_model=RollbackResponse)
 def rollback_operation(body: RollbackRequest, request: Request) -> dict[str, Any]:
-    manager = request.app.state.backup_manager
+    services = services_for_request(request)
+    manager = services.backup_manager
     try:
         manifest = manager.get_group_manifest(body.backup_group_id)
     except PathValidationError as error:
@@ -72,7 +74,7 @@ def rollback_operation(body: RollbackRequest, request: Request) -> dict[str, Any
 
     conversation_id = manifest.get("conversation_id")
     guard = (
-        request.app.state.agent_service.exclusive_conversation(str(conversation_id))
+        services.agent_service.exclusive_conversation(str(conversation_id))
         if conversation_id
         else nullcontext()
     )
@@ -85,7 +87,7 @@ def rollback_operation(body: RollbackRequest, request: Request) -> dict[str, Any
         OPERATION_ROLLBACK_ATTEMPTS.labels(
             "v1_api", "success" if ok else "failure"
         ).inc()
-        request.app.state.command_journal.audit(
+        services.command_journal.audit(
             request_id=request.state.request_id,
             conversation_id=str(conversation_id) if conversation_id else None,
             action="rollback",

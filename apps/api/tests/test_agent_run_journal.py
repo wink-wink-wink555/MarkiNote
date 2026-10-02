@@ -277,6 +277,7 @@ def test_agent_run_migration_upgrades_0001_through_0003_and_readiness_requires_h
                 "finished_at",
                 "updated_at",
                 "error_code",
+                "user_id",
             } == {column["name"] for column in inspector.get_columns("agent_runs")}
             assert inspector.get_pk_constraint("agent_runs")["constrained_columns"] == [
                 "run_id",

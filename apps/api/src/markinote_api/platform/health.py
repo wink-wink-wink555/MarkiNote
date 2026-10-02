@@ -33,12 +33,16 @@ def _directory_ready(path: Path) -> bool:
 @router.get("/health/ready", summary="Dependency readiness", response_model=ReadinessResponse)
 def ready(request: Request) -> JSONResponse:
     settings = request.app.state.settings
-    checks = {
-        "library": _directory_ready(settings.library_folder),
-        "conversations": _directory_ready(settings.conversations_folder),
-        "backups": _directory_ready(settings.backups_folder),
-        "trash": _directory_ready(settings.trash_folder),
-    }
+    checks = {}
+    if settings.auth_mode != "accounts":
+        checks.update(
+            {
+                "library": _directory_ready(settings.library_folder),
+                "conversations": _directory_ready(settings.conversations_folder),
+                "backups": _directory_ready(settings.backups_folder),
+                "trash": _directory_ready(settings.trash_folder),
+            }
+        )
     database = getattr(request.app.state, "database", None)
     if database is not None:
         checks["database"] = database.ready()
