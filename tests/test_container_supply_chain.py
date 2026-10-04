@@ -11,7 +11,7 @@ def test_python_project_build_backend_is_exactly_locked_and_offline() -> None:
     dockerfile = (REPOSITORY_ROOT / "Dockerfile.api").read_text(encoding="utf-8")
     uv_lock = (REPOSITORY_ROOT / "uv.lock").read_text(encoding="utf-8")
 
-    expected = ("setuptools==83.0.0", "wheel==0.47.0")
+    expected = ("setuptools==83.0.0", "wheel==0.48.0")
     for requirement in expected:
         assert pyproject.count(f'"{requirement}"') == 2
         name, version = requirement.split("==", 1)

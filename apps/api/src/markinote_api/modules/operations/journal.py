@@ -468,6 +468,8 @@ class SqlCommandJournal(CommandJournal):
             if self._result_requires_retention(result, protected_backup_groups):
                 protected_count += 1
                 continue
+            if not isinstance(command_id, str):
+                raise ValueError("stored command ID is not text")
             selected.append(command_id)
             if len(selected) == limit:
                 break
