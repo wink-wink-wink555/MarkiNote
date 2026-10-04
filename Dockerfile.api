@@ -56,6 +56,12 @@ ENV PATH="/opt/venv/bin:${PATH}" \
 
 WORKDIR /srv/markinote
 
+# Refresh Debian security fixes in the runtime layer. The pinned Python tag
+# can lag behind patched bookworm packages between upstream image rebuilds.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --gid 10001 markinote \
     && useradd --uid 10001 --gid markinote --no-create-home --shell /usr/sbin/nologin markinote \
     && mkdir -p /data/library /data/conversations /data/backups /data/trash /data/state \

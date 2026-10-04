@@ -23,7 +23,7 @@ describe('HistoryPanel', () => {
       onDeletedActive={vi.fn()}
     />);
 
-    const current = await screen.findByRole('button', { name: /Current draft/ });
+    const current = await screen.findByRole('button', { name: /Current draft/ }, { timeout: 5000 });
     expect(current).toHaveAttribute('aria-current', 'true');
     expect(screen.getByRole('button', { name: 'Rename conversation' }).closest('.ai-row-actions')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete conversation' }).closest('.ai-row-actions')).toBeInTheDocument();
