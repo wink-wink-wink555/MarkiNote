@@ -38,9 +38,9 @@ describe('ToolCard', () => {
 
     rerender(<ToolCard key="with-backup" entry={{ ...baseEntry, backupInfo: { type: 'file', path: 'Guide.md', operation_index: 3 } }} onRollback={onRollback} />);
     await user.click(screen.getByRole('button', { expanded: false }));
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     await user.click(screen.getByRole('button', { name: /roll back operation/i }));
-    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(confirm).toHaveBeenCalledOnce();
     expect(onRollback).not.toHaveBeenCalled();
   });
 
