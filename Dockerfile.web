@@ -20,6 +20,9 @@ RUN npm run build
 
 FROM ${NGINX_BASE_IMAGE} AS runtime
 
+# Keep Alpine packages current when the pinned NGINX tag predates fixes.
+RUN apk upgrade --no-cache
+
 ARG VCS_REF="unknown"
 ARG BUILD_DATE="unknown"
 ARG VERSION="0.0.0-local"

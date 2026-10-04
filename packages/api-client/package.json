@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "markinote": "file:../..",
     "openapi-fetch": "0.17.0"
   },
   "devDependencies": {
@@ -19,7 +20,7 @@
   },
   "overrides": {
     "@redocly/openapi-core": {
-      "js-yaml": "4.3.1"
+      "js-yaml": "4.3.2"
     }
   }
 }
