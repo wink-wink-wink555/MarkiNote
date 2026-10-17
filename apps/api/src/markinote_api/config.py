@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     backup_max_bytes: int = 256 * 1024 * 1024
     ai_generate_titles: bool = False
     ai_api_key: SecretStr | None = None
+    web_search_provider: Literal["bing", "parallel", "disabled"] = "bing"
     # CI-only upstream fixture. Keeping the override in typed configuration,
     # rather than mutating the provider registry, makes the production guard
     # auditable and prevents a smoke test from reaching a real provider.

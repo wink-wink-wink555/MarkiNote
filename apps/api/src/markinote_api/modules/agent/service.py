@@ -1272,6 +1272,8 @@ class AgentService:
                                     model_id=request.model,
                                     document_service=self.documents,
                                     command_id=command_id,
+                                    web_search_provider=self.settings.web_search_provider,
+                                    search_session_id=conversation_id,
                                 )
                                 if backup_info:
                                     command_backup_group_id = backup_group_id

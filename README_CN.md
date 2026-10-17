@@ -196,6 +196,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\import-library
 
 Agent run 最多执行 8 轮工具、总计 24 次工具调用。Agent 文件工具的文件上限为 512 KiB，即使普通文档可以达到 2 MiB；`fetch_url` 最多接受 2 MiB，并且附加的长网页摘要调用最多考虑 20,000 个已提取字符。文件变更会写入日志，在变更前备份，并以工具卡片展示。回滚始终针对一个明确的操作索引；API 不会假装一个多文件操作组可以被原子撤销。
 
+### 可选的 Parallel 联网搜索
+
+`web_search` 默认使用 Bing，并在失败时尝试 DuckDuckGo。若要改用免费的 [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)，请在 `.env` 设置 `MARKINOTE_WEB_SEARCH_PROVIDER=parallel`，然后重建 API 容器（`docker compose up -d --build api`），或重启本地 API。无需 Parallel 账号或 API key；搜索使用 Fast 模式。可让 Agent “查找 Python TaskGroup 文档并总结其取消行为”，结果包含摘录与来源 URL。
+
+适配器只向 `https://search.parallel.ai/mcp` 发送搜索查询、经过哈希的会话标识和所选模型 ID，不转发文档正文或模型 API key。搜索内容仍视为不可信，后续文件变更仍需人工批准。请求有 20 秒截止时间；错误或服务限额会返回工具结果，不自动切换服务。取消会关闭 MCP 资源；同步 Agent 在工具调用之间检查浏览器断开。`fetch_url` 保留现有公网 URL 校验和抓取路径。
+
+将配置改回 `bing` 可恢复原搜索，设为 `disabled` 可禁用 `web_search`（网页抓取仍可用）。模型偏好和凭据不受影响。API 安装和镜像包含官方 MCP SDK 及其运行时依赖。
+
 ### 已审查的 Provider allowlist
 
 截至 **2026-08-09**，仓库 allowlist 为：
@@ -215,7 +223,7 @@ Agent run 最多执行 8 轮工具、总计 24 次工具调用。Agent 文件工
 - 长网页摘要和可选的自动标题生成会发起额外 Provider 请求，并可能产生额外费用。
 - 新建和恢复的会话，其 AI 写权限初始均为**关闭**。
 - 未选中的资源需要批准。执行 `web_search` 或 `fetch_url` 后，任何变更都需要针对精确工具名称和规范化参数的新一次性批准，并将网页内容视为不可信指令。
-- `fetch_url` 会拒绝 URL 中的凭据、私有地址/链路本地地址、不安全的重定向跳转以及 DNS/对端不匹配。`web_search` 仍然只是对公开搜索页面的 best-effort 抓取，不是有保证的正式搜索 API。
+- `fetch_url` 会拒绝 URL 中的凭据、私有地址/链路本地地址、不安全的重定向跳转以及 DNS/对端不匹配。默认 `web_search` 是对公开搜索页面的 best-effort 抓取；可选的 Parallel Provider 使用其 Search MCP 服务。
 - Fake Provider 测试只验证协议行为，不能证明真实账号、余额、区域、模型或网络路径可用。
 
 ## 🏗️ 架构
@@ -332,6 +340,7 @@ Prometheus 默认只绑定到回环地址。应用指标使用由服务端定义
 | 变量 | Compose 默认值 | 含义 |
 |---|---:|---|
 | `MARKINOTE_AI_API_KEY` | 空 | 可选的单一服务端 Provider 凭据 |
+| `MARKINOTE_WEB_SEARCH_PROVIDER` | `bing` | `bing`（Bing/DuckDuckGo）、`parallel`（匿名 MCP）或 `disabled` |
 | `MARKINOTE_AI_GENERATE_TITLES` | `false` | 启用自动会话标题时会增加一次 Provider 请求 |
 | `MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP` | `false` | production overlay 会启用有界的过期 run 协调 |
 | `MARKINOTE_AGENT_RUN_SINGLE_WRITER` | `false` | 启动协调运行前所需的单写入者确认 |
