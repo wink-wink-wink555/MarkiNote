@@ -1157,8 +1157,25 @@ def _summarize_with_subagent(content, url, api_key, provider_id, model_id):
 
 def _web_search(args, lib_dir, bm, gid, **extra):
     query = args.get('query', '')
-    if not query:
+    if not isinstance(query, str) or not query.strip():
         return '搜索查询不能为空', None
+    if len(query) > 2000:
+        return '搜索查询过长', None
+
+    provider = extra.get('web_search_provider', 'bing')
+    if provider == 'disabled':
+        return '联网搜索已禁用。', None
+    if provider == 'parallel':
+        from markinote_api.modules.agent.parallel_search import search
+
+        result = search(
+            query,
+            session_id=extra.get('search_session_id', ''),
+            model_id=extra.get('model_id', ''),
+        )
+        return f'{UNTRUSTED_WEB_CONTENT_NOTICE}\n{result}', None
+    if provider != 'bing':
+        return '未知搜索服务配置。', None
 
     proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY') or os.environ.get('ALL_PROXY')
 

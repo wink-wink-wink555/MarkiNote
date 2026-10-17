@@ -196,6 +196,14 @@ The importer accepts `.md`, `.markdown`, and `.txt`, checks paths and name confl
 
 Agent runs are capped at eight tool rounds and 24 total tool calls. Agent file tools use a 512 KiB file limit even though regular documents may reach 2 MiB; `fetch_url` accepts at most 2 MiB and considers at most 20,000 extracted characters for an additional long-page summary call. File mutations are journaled, backed up before the change, and exposed as tool cards. Rollback always targets one explicit operation index; the API does not pretend that a multi-file group can be reversed atomically.
 
+### Optional Parallel web search
+
+The default `web_search` uses Bing with DuckDuckGo fallback. To use free [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) instead, set `MARKINOTE_WEB_SEARCH_PROVIDER=parallel` in `.env` and recreate the API container (`docker compose up -d --build api`), or restart the native API. No Parallel account or API key is required; search uses Fast mode. Ask the agent to research a topic, such as “Find the Python TaskGroup documentation and summarize its cancellation behavior.” Results include excerpts and source URLs.
+
+Only search queries, a hashed conversation identifier and the selected model ID go to `https://search.parallel.ai/mcp`; document contents and model API keys are not forwarded by this adapter. Search output remains untrusted and subsequent file changes still require approval. Requests have a 20-second deadline; errors and service limits produce a tool result without switching providers. Cancellation closes MCP resources; the synchronous agent checks a browser disconnect between tool calls. `fetch_url` keeps its existing public-URL validation and fetching path.
+
+Set the provider back to `bing` to restore the original search, or `disabled` to disable `web_search` (page fetching remains available). Existing model selections and credentials are independent. The official MCP SDK and its runtime dependencies are included in the API installation and image.
+
 ### Reviewed provider allowlist
 
 As of **2026-08-09**, the repository allowlist is:
@@ -332,6 +340,7 @@ Copy `.env.example` to `.env` for Compose. Pydantic also reads `.env.local` for 
 | Variable | Compose default | Meaning |
 |---|---:|---|
 | `MARKINOTE_AI_API_KEY` | empty | Optional single server-side provider credential |
+| `MARKINOTE_WEB_SEARCH_PROVIDER` | `bing` | `bing` (Bing/DuckDuckGo), `parallel` (anonymous MCP), or `disabled` |
 | `MARKINOTE_AI_GENERATE_TITLES` | `false` | Adds a provider request when automatic conversation titles are enabled |
 | `MARKINOTE_AGENT_RUN_RECONCILE_ON_STARTUP` | `false` | Production overlay enables bounded stale-run reconciliation |
 | `MARKINOTE_AGENT_RUN_SINGLE_WRITER` | `false` | Required acknowledgement before startup reconciliation may run |

@@ -33,6 +33,9 @@ dependencies = [
   "duckduckgo-search>=8.1,<9",
   "prometheus-client>=0.21,<1",
   "python-multipart>=0.0.20,<1",
+  "mcp>=2.3,<3",
+  "anyio>=4.9,<5",
+  "httpx2>=2.10,<3",
 ]
 
 [project.optional-dependencies]
