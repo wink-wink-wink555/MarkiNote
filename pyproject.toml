@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0", "wheel==0.48.0"]
+requires = ["setuptools==84.1.0", "wheel==0.48.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -71,7 +71,7 @@ Documentation = "https://github.com/wink-wink-wink555/MarkiNote#readme"
 
 [dependency-groups]
 build = [
-  "setuptools==83.0.0",
+  "setuptools==84.1.0",
   "wheel==0.48.0",
 ]
 
