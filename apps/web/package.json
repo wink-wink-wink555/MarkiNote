@@ -31,7 +31,7 @@
     "codemirror": "^6.0.2",
     "dompurify": "^3.2.6",
     "i18next": "^25.2.1",
-    "katex": "^0.16.22",
+    "katex": "^0.18.2",
     "lucide-react": "^0.522.0",
     "marked": "^15.0.12",
     "mermaid": "^11.6.0",
